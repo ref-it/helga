@@ -20,6 +20,7 @@ function fakeOidcLogin(array $groups, string $sub = 'sub-123', ?string $phoneNum
 
     $provider = Mockery::mock(Provider::class);
     $provider->shouldReceive('user')->andReturn($socialiteUser);
+    $provider->shouldReceive('getIdToken')->andReturn('fake-id-token');
     Socialite::shouldReceive('driver')->with('oidc')->andReturn($provider);
 }
 

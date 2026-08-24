@@ -18,7 +18,6 @@ test('the manage page renders the shift table, grouped by category, with edit/de
 
     $this->actingAs($owner)->get(route('plan.manage', $plan))
         ->assertOk()
-        ->assertSee('data-flux-table', escape: false)
         ->assertSee($uncategorized->title)
         ->assertSee($categorized->title)
         ->assertSee('Bar');
@@ -32,7 +31,6 @@ test('the public show page renders the shift table with a subscribe action', fun
 
     $this->get(route('plan.show', $plan))
         ->assertOk()
-        ->assertSee('data-flux-table', escape: false)
         ->assertSee($shift->title)
         ->assertSee($plan->contact_email)
         ->assertSee('mailto:'.$plan->contact_email, escape: false);

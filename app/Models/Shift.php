@@ -25,6 +25,15 @@ class Shift extends Model
 {
     use HasFactory;
 
+    /**
+     * Mirrors the DB column default so that shifts created without an
+     * explicit value (CSV import, tests) already have a usable in-memory
+     * value - Eloquent doesn't re-read column defaults after an insert.
+     */
+    protected $attributes = [
+        'unsubscribe_lock_hours' => 24,
+    ];
+
     protected function casts(): array
     {
         return [

@@ -1,0 +1,26 @@
+version: 2
+
+registries:
+  fluxui:
+    type: composer-repository
+    url: https://composer.fluxui.dev
+    username: ${{secrets.FLUXUI_USERNAME}}
+    password: ${{secrets.FLUXUI_PASSWORD}}
+
+updates:
+  - package-ecosystem: composer
+    directory: "/"
+    registries:
+      - fluxui
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

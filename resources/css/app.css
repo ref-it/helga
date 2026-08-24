@@ -1,0 +1,177 @@
+@import 'tailwindcss';
+@import '../../vendor/livewire/flux/dist/flux.css';
+
+@source '../views';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+    --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --livewire-progress-bar-color: var(--color-accent-content) !important;
+}
+
+body {
+    @apply h-full overflow-hidden bg-zinc-50 dark:bg-zinc-900;
+    word-wrap: break-word;
+    hyphens: auto;
+}
+
+main {
+    @apply h-full overflow-y-auto;
+}
+
+main > div {
+    @apply w-full max-w-7xl;
+    margin: 0 auto;
+}
+
+.sidebar-nav-button.active {
+    @apply bg-white dark:bg-zinc-700 ring-1 ring-zinc-200 dark:ring-zinc-600;
+}
+
+.sidebar-nav-button.active svg {
+    @apply stroke-(--color-accent-content);
+}
+
+/* Flux */
+
+table th,
+table td {
+    @apply text-base! text-zinc-800! dark:text-white!;
+}
+
+table th {
+    @apply font-bold!;
+}
+
+ui-label,
+ui-legend {
+    @apply text-sm font-semibold! mb-2! text-zinc-600 dark:text-zinc-300;
+}
+
+ui-toast-group {
+    @apply mt-[5.5rem]!;
+}
+
+.flux-input-rounded-br-md > button,
+.flux-input-rounded-br-md > input,
+.flux-input-rounded-br-md > ui-pillbox-trigger {
+    @apply rounded-none! rounded-br-md!;
+}
+
+.breadcrumbs svg {
+    @apply text-zinc-400 dark:text-zinc-500;
+}
+
+ui-sidebar ui-tooltip > a {
+    @apply h-10! -mx-3! w-[calc(100%_+_1.5rem)]!;
+}
+
+ui-sidebar ui-tooltip > a > div:last-of-type {
+    @apply text-base! font-medium! text-zinc-800 dark:text-white;
+}
+
+ui-sidebar ui-tooltip a svg {
+    @apply size-6!;
+}
+
+ui-modal dialog {
+    @apply mx-6 mb-6 sm:m-auto dark:bg-zinc-900!;
+}
+
+ui-modal .modal-header {
+    @apply mb-6 -mx-6 -mt-6 px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 font-semibold!;
+}
+
+ui-modal button {
+    @apply -mt-2 -mr-2;
+}
+
+input:disabled {
+    @apply bg-zinc-100 dark:bg-zinc-800 cursor-not-allowed;
+}
+
+.breadcrumbs div:last-of-type > div {
+    @apply text-zinc-600! dark:text-white/80!;
+}
+
+.pagination > div {
+    @apply border-zinc-200 dark:border-zinc-700;
+}
+
+.pagination > div div {
+    @apply text-sm!;
+}
+
+.pagination > div > div:last-of-type {
+    @apply divide-x divide-zinc-200 dark:divide-zinc-700 p-0;
+}
+
+.pagination > div > div:last-of-type div,
+.pagination > div > div:last-of-type button {
+    @apply text-sm! h-8 px-3 rounded-none;
+}
+
+.pagination > div > div:last-of-type button {
+    @apply cursor-pointer;
+}
+
+.pagination > div > div:last-of-type div[aria-current="page"] {
+    @apply bg-zinc-100 dark:bg-zinc-800;
+}
+
+
+/* Custom Styles */
+
+legend {
+    @apply text-sm! mb-2! dark:text-zinc-300! font-medium!;
+}
+
+fieldset {
+    @apply divide-y divide-zinc-300 dark:divide-zinc-600 overflow-hidden rounded-b-lg bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-white shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-700;
+}
+
+fieldset legend {
+    @apply w-full px-4 py-3 mb-0! bg-zinc-100 dark:bg-zinc-800 text-base! font-bold ring-1 ring-zinc-200 dark:ring-zinc-700 rounded-t-lg border-b-0;
+}
+
+input[type="file"] {
+    @apply dark:border-zinc-700;
+}
+
+.message-left {
+    @apply relative mb-4;
+}
+
+.message-left:after {
+    @apply block relative h-0 w-0;
+    content: '';
+    left: -1.25rem;
+    border: 1rem solid;
+    border-color: transparent var(--color-zinc-200) var(--color-zinc-200) transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+    .message-left:after {
+        border-color: transparent var(--color-zinc-700) var(--color-zinc-700) transparent;
+    }
+}
+
+.message-right {
+    @apply relative mb-12;
+}
+
+.message-right:after{
+    @apply block relative w-0 h-0 float-right -mr-5;
+    content: '';
+    border: 1rem solid;
+    border-color: transparent transparent var(--color-accent) var(--color-accent);
+}
+
+@utility sidebar-nav-button {
+    @apply text-zinc-800 dark:text-zinc-50 hover:bg-zinc-200 dark:hover:bg-zinc-700 flex gap-x-3 rounded-md p-2 leading-6 font-medium transition ease-in-out duration-300;
+    & svg {
+        @apply text-zinc-600 dark:text-zinc-300 h-6 w-6 shrink-0;
+    }
+}
+

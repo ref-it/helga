@@ -56,6 +56,22 @@ final class PlanPdfRenderer
     private const CELL_PADDING = 2.0;
 
     /**
+     * Font size of a helper's e-mail address and phone number, in pt. Smaller
+     * than the name above them, because the name is what a reader scans for -
+     * but not so small that a printed contact is hard to read out over the
+     * phone, which is the one thing these two lines exist for.
+     */
+    private const CONTACT_FONT_SIZE = 9.0;
+
+    /**
+     * Air above each of those two lines, in mm. Without it the three lines
+     * sit in one block and the eye has to pick the name out of it; with it
+     * the name reads as the row's heading and the contacts as its detail.
+     * Applied to measuring and drawing alike, like LINE_SPACING.
+     */
+    private const CONTACT_LINE_GAP = 1.0;
+
+    /**
      * Padding below the column header labels, in mm. There is deliberately
      * none above: the table has no top edge, so any padding there merges with
      * the block gap above it and reads as a hole rather than as padding. The
@@ -596,9 +612,9 @@ final class PlanPdfRenderer
             // printout is filled in by hand, so the lines have to be there to
             // write on.
             $stack = [
-                [$subscription->name ?? '', 11.0, true],
-                [$subscription->email ?? '', 8.0, false],
-                [$subscription->phone ?? '', 8.0, false],
+                [$subscription->name ?? '', 11.0, true, 0.0],
+                [$subscription->email ?? '', self::CONTACT_FONT_SIZE, false, self::CONTACT_LINE_GAP],
+                [$subscription->phone ?? '', self::CONTACT_FONT_SIZE, false, self::CONTACT_LINE_GAP],
             ];
 
             $nameWidth = $columns['name']['width'] - 2 * self::CELL_PADDING;
@@ -608,12 +624,12 @@ final class PlanPdfRenderer
             // there is a line to write each value on. Measured once and reused
             // for drawing, so the lines and the borders cannot drift apart.
             $lineHeights = [];
-            foreach ($stack as [$text, $fontSize, $hyphenate]) {
+            foreach ($stack as [$text, $fontSize, $hyphenate, $gap]) {
                 $this->font('', $fontSize);
                 $this->breakMode($hyphenate);
-                $lineHeights[] = $text === ''
+                $lineHeights[] = $gap + ($text === ''
                     ? $this->lineHeight($fontSize)
-                    : $this->measure($text, $nameWidth);
+                    : $this->measure($text, $nameWidth));
             }
             $this->breakMode(true);
 
@@ -663,11 +679,11 @@ final class PlanPdfRenderer
             // person, so they are not columns of their own
             $this->beginTag('TD', null, [], true);
             $lineY = $textY;
-            foreach ($stack as $line => [$text, $fontSize, $hyphenate]) {
+            foreach ($stack as $line => [$text, $fontSize, $hyphenate, $gap]) {
                 if ($text !== '') {
                     $this->font('', $fontSize);
                     $this->breakMode($hyphenate);
-                    $this->text($text, $columns['name']['x'] + self::CELL_PADDING, $lineY, $nameWidth);
+                    $this->text($text, $columns['name']['x'] + self::CELL_PADDING, $lineY + $gap, $nameWidth);
                 }
 
                 $lineY += $lineHeights[$line];

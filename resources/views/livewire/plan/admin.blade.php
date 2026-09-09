@@ -59,11 +59,6 @@
                             >
                                 {{__('plan.exportTemplate')}}
                             </flux:menu.item>
-                            <flux:modal.trigger name="import">
-                                <flux:menu.item icon="upload">
-                                    {{__('plan.import')}}
-                                </flux:menu.item>
-                            </flux:modal.trigger>
                         </flux:menu>
                     </flux:dropdown>
                 @endcan
@@ -126,30 +121,11 @@
     </div>
 
     {{--
-        rendered outside the .space-y-6 container on purpose - as siblings
-        inside it, these modals would each pick up a space-y top margin of
-        their own, leaving a visible empty gap at the bottom of the page
-        since they render nothing until opened
+        rendered outside the .space-y-6 container on purpose - as a sibling
+        inside it, this modal would pick up a space-y top margin of its own,
+        leaving a visible empty gap at the bottom of the page since it
+        renders nothing until opened
     --}}
-    @can('manage', $plan)
-        <flux:modal name="import" class="md:w-[40rem]">
-            <flux:heading size="lg" class="modal-header">{{ __('plan.import') }}</flux:heading>
-            <div class="space-y-4">
-                <flux:callout icon="info" heading="{{ __('plan.importHelp') }}" />
-                <form id="importPlanForm" method="post" action="{{route('plan.import', ['plan' => $plan])}}" enctype="multipart/form-data">
-                    @csrf
-                    <input
-                        type="file"
-                        id="import"
-                        name="import"
-                        accept="text/csv"
-                        class="border border-zinc-200 dark:border-zinc-700 rounded-md p-2 w-full h-[10rem]"
-                    />
-                </form>
-            </div>
-        </flux:modal>
-    @endcan
-
     @can('share', $plan)
         <flux:modal name="share" class="md:w-[40rem]">
             <div class="space-y-6">

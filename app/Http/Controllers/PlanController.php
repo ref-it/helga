@@ -21,30 +21,37 @@ use Illuminate\Support\Str;
 class PlanController extends Controller
 {
     /**
-     * Import a plan from a csv file.
+     * Import a plan from a csv file, always as a brand new plan.
+     *
+     * Importing into an existing plan is deliberately not offered: the file
+     * has no ids, so shifts and helpers could only ever be appended to what
+     * is already there, never matched up with it - which silently doubled
+     * the plan. Re-importing as a new plan and deleting the old one is the
+     * unambiguous way to do the same thing.
      *
      * @param  Request  $request
      */
-    public function import(ImportPlanRequest $request, ?Plan $plan = null)
+    public function import(ImportPlanRequest $request)
     {
         if (! $request->file('import')->isValid()) {
             return abort(500, "Can't upload the file");
         }
-        if ($plan) {
-            $this->authorize('manage', $plan);
-        } else {
-            $plan = new Plan;
-            $plan->user_id = Auth::id();
-        }
+        $plan = new Plan;
+        $plan->user_id = Auth::id();
         $file = $request->file('import');
         $in = fopen($file->getRealPath(), 'r');
-        // reset an existing plan if you update
+        // placeholders for the not-null columns, so the row can be inserted
+        // now - the shifts below need a plan id to hang off, and the real
+        // values only arrive with the key/value rows further down the file
         $plan->title = '';
         $plan->description = '';
         $plan->owner_email = '';
         $plan->save();
         $shift = null;
         $planData = [];
+        // category name => ShiftCategory id, so a category many shifts share
+        // is only created once. Starts out empty because the plan is new
+        $categoryIds = [];
         // go over all lines and import the data
         while (($data = fgetcsv($in)) !== false) {
             if (preg_match('/^shift$/', $data[0])) {
@@ -52,9 +59,8 @@ class PlanController extends Controller
                 array_shift($data);
                 // remove empty field
                 array_shift($data);
-                $type = $data[0];
                 $d = [
-                    'type' => empty($type) ? '' : $type,
+                    'type' => $this->categoryId($plan, (string) $data[0], $categoryIds),
                     'title' => $data[1],
                     'description' => $data[2],
                     'start' => $data[3],
@@ -126,6 +132,35 @@ class PlanController extends Controller
     }
 
     /**
+     * Turn a category name from a csv shift row into a ShiftCategory id of
+     * the target plan, creating the category on first use. Shifts keep the
+     * id in `type`, so the name from the file has to be resolved back into
+     * one - see Shift::export() for why the file carries the name.
+     *
+     * A csv exported before that change carries the id instead, which then
+     * becomes a category literally named e.g. "7". That is what such a plan
+     * already showed as its group heading before the import, because the id
+     * pointed at no category of the new plan and PlanPdfRenderer falls back
+     * to printing the raw value.
+     *
+     * @param  array<string, int>  $known  name => id, grown as categories are created
+     */
+    private function categoryId(Plan $plan, string $name, array &$known): string
+    {
+        if ($name === '') {
+            return '';
+        }
+        // matches the shift_categories.name column, so an overlong name is a
+        // bad file rather than a failed insert
+        if (mb_strlen($name) > 255) {
+            return abort(400, 'Invalid csv input');
+        }
+        $known[$name] ??= $plan->shiftCategories()->create(['name' => $name])->id;
+
+        return (string) $known[$name];
+    }
+
+    /**
      * Exprt a plan
      *
      * The format of the csv s for humans, and not primary for machines
@@ -149,11 +184,12 @@ class PlanController extends Controller
         ];
 
         // export a plan in the csv format
-        $callback = function () use ($plan, $isTemplate): void {
+        $categoryNames = $plan->shiftCategories->pluck('name', 'id');
+        $callback = function () use ($plan, $isTemplate, $categoryNames): void {
             $file = fopen('php://output', 'w');
             $plan->export($file);
             foreach ($plan->shifts()->get() as $shift) {
-                fputcsv($file, $shift->export());
+                fputcsv($file, $shift->export($categoryNames));
                 if (! $isTemplate) {
                     foreach ($shift->subscriptions()->get() as $sub) {
                         fputcsv($file, $sub->export());

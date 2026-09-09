@@ -70,7 +70,7 @@ test('a read-only group member cannot edit or delete an existing shift', functio
     $this->actingAs($member)->delete(route('plan.shift.destroy', ['plan' => $plan, 'shift' => $shift]))->assertForbidden();
 });
 
-test('a read-only group member cannot export or import the plan', function (): void {
+test('a read-only group member cannot export the plan', function (): void {
     $owner = User::factory()->create();
     $plan = createOwnedPlan($owner);
     $plan->sharedGroups()->create(['group' => 'observers', 'access' => PlanShare::READ]);

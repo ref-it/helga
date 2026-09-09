@@ -138,7 +138,7 @@ class Plan extends Model
 
     /**
      * Whether the given user may manage this plan (create/edit/delete shifts,
-     * view/manage subscriptions, export/import) - either as the owner, as a
+     * view/manage subscriptions, export) - either as the owner, as a
      * member of a group with management access, or as a global admin
      * (OIDC_ADMIN_GROUPS). Checked live, so revoking the share or the group
      * membership takes effect immediately.

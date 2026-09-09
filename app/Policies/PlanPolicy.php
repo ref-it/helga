@@ -47,7 +47,7 @@ class PlanPolicy
 
     /**
      * Determine whether the user can create/edit/delete shifts, manage
-     * subscriptions, and export/import the given plan.
+     * subscriptions, and export the given plan.
      */
     public function manage(User $user, Plan $plan): bool
     {

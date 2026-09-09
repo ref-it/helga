@@ -79,9 +79,9 @@ Route::get('/plans/{plan}/export', [PlanController::class, 'export'])
     ->middleware(['auth', 'can:manage,plan'])->name('plan.export');
 Route::get('/plans/{plan}/export/pdf', [PlanController::class, 'exportPdf'])
     ->middleware(['auth', 'can:manage,plan'])->name('plan.export.pdf');
-// $plan is optional here (importing as a brand new plan), so the ability
-// check stays inline in the controller instead of route middleware
-Route::post('/plans/import/{plan?}', [PlanController::class, 'import'])->middleware('auth')->name('plan.import');
+// an import always creates a new plan (see PlanController::import), so there
+// is no plan to authorize against - being logged in is the whole check
+Route::post('/plans/import', [PlanController::class, 'import'])->middleware('auth')->name('plan.import');
 
 /**
  * Edit plan details.

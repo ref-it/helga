@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 
 #[Fillable([
     'type',
@@ -45,11 +46,19 @@ class Shift extends Model
 
     /**
      * Export shifts
+     *
+     * The category goes into the csv as its name, not as the ShiftCategory
+     * id that `type` actually holds - that id belongs to this plan and means
+     * nothing in the plan the file gets imported into, and a name is what
+     * someone hand-editing the file can reasonably type. The import resolves
+     * it back to an id.
+     *
+     * @param  Collection<int, string>  $categoryNames  ShiftCategory id => name
      */
-    public function export(): array
+    public function export(Collection $categoryNames): array
     {
         return [
-            'shift', '', $this->type, $this->title, $this->description,
+            'shift', '', $categoryNames[$this->type] ?? $this->type, $this->title, $this->description,
             $this->start, $this->end, $this->team_size, $this->requires_health_certificate,
             $this->requires_clothing_size,
         ];

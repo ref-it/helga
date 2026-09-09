@@ -128,22 +128,6 @@ class Plan extends Model
     }
 
     /**
-     * The plan's logo as a base64 data URI, or null if it doesn't have one.
-     * Used for the PDF export, where dompdf has remote image fetching
-     * disabled and can't load the logo via its public URL.
-     */
-    public function logoDataUri(): ?string
-    {
-        if (! $this->logo) {
-            return null;
-        }
-
-        $disk = Storage::disk('public');
-
-        return 'data:'.$disk->mimeType($this->logo).';base64,'.base64_encode($disk->get($this->logo));
-    }
-
-    /**
      * Subscriber names are never public - they're only shown to logged-in
      * visitors, and only if the owner opted in via show_subscriber_names.
      */

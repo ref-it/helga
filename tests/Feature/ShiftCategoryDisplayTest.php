@@ -4,6 +4,7 @@ use App\Livewire\Shift\Create;
 use App\Livewire\Shift\Edit;
 use App\Models\ShiftCategory;
 use App\Models\User;
+use App\Support\PlanPdfRenderer;
 use Livewire\Livewire;
 
 test('the shift category name is shown instead of its raw id on the manage page', function (): void {
@@ -45,7 +46,11 @@ test('the shift category name is shown instead of its raw id on the public show 
         ->assertSee('Kitchen');
 });
 
-test('the shift category name is shown instead of its raw id in the pdf export', function (): void {
+// The PDF export draws its text as subset glyph ids, so the rendered bytes
+// cannot be searched for a category name the way the old HTML template could.
+// The resolution step that turns a shift's stored type id into a heading label
+// is asserted directly instead, and PlanExportPdfTest covers the export route.
+test('the shift category name is resolved instead of its raw id for the pdf export', function (): void {
     $owner = User::factory()->create();
     $plan = createOwnedPlan($owner);
     $category = ShiftCategory::create(['name' => 'Kitchen', 'plan_id' => $plan->id]);
@@ -59,12 +64,33 @@ test('the shift category name is shown instead of its raw id in the pdf export',
         'team_size' => 2,
     ]);
 
-    $html = view('pdf.plan', [
-        'plan' => $plan,
-        'categoryNames' => $plan->shiftCategories->pluck('name', 'id'),
-    ])->render();
+    $names = $plan->shiftCategories->pluck('name', 'id');
 
-    expect($html)->toContain('Kitchen');
+    expect((new PlanPdfRenderer)->categoryLabel((string) $category->id, $names))->toBe('Kitchen');
+});
+
+test('a category id with no matching category falls back to the raw value', function (): void {
+    expect((new PlanPdfRenderer)->categoryLabel('404', collect()))->toBe('404');
+});
+
+test('the pdf export of a categorized plan renders', function (): void {
+    $owner = User::factory()->create();
+    $plan = createOwnedPlan($owner);
+    $category = ShiftCategory::create(['name' => 'Kitchen', 'plan_id' => $plan->id]);
+    $plan->shifts()->create([
+        'title' => 'Categorized shift',
+        'description' => 'Desc',
+        'group' => 0,
+        'type' => (string) $category->id,
+        'start' => now(),
+        'end' => now()->addHours(2),
+        'team_size' => 2,
+    ]);
+
+    $plan->load(['shifts.subscriptions', 'shiftCategories']);
+    $raw = (new PlanPdfRenderer)->render($plan, $plan->shiftCategories->pluck('name', 'id'));
+
+    expect($raw)->toStartWith('%PDF-');
 });
 
 test('picking an existing category in the select stores its id, not its name', function (): void {

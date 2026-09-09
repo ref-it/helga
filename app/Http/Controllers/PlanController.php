@@ -7,7 +7,7 @@ use App\Http\Requests\StoreShiftRequest;
 use App\Http\Requests\StoreSubscriptionRequest;
 use App\Http\Requests\UpdatePlanRequest;
 use App\Models\Plan;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Support\PlanPdfRenderer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Artisan;
@@ -170,17 +170,16 @@ class PlanController extends Controller
      * Export a plan with its shifts and subscribed helpers as a printable PDF.
      * Shifts with open slots keep enough room per row to fill them in by hand.
      */
-    public function exportPdf(Plan $plan): Response
+    public function exportPdf(Plan $plan, PlanPdfRenderer $renderer): Response
     {
         // authorized by the 'can:manage,plan' route middleware
-        // needed for the "x / y" page number footer - the template's
-        // <script type="text/php"> block that draws it is otherwise a no-op
-        $pdf = Pdf::setOptions(['isPhpEnabled' => true])->loadView('pdf.plan', [
-            'plan' => $plan,
-            'categoryNames' => $plan->shiftCategories->pluck('name', 'id'),
-        ]);
+        $raw = $renderer->render($plan, $plan->shiftCategories->pluck('name', 'id'));
+        $filename = Str::slug(__('plan.shiftPlan').'-'.$plan->title).'.pdf';
 
-        return $pdf->download(Str::slug(__('plan.shiftPlan').'-'.$plan->title).'.pdf');
+        return response($raw, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
     }
 
     /**

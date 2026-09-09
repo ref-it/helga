@@ -7,7 +7,6 @@
     "require": {
         "php": ">=8.3",
         "ext-sqlite3": "*",
-        "barryvdh/laravel-dompdf": "^3.1",
         "doctrine/dbal": "^3.1",
         "guzzlehttp/guzzle": "^7.0.1",
         "kovah/laravel-socialite-oidc": "^0.8.0",
@@ -20,7 +19,7 @@
         "livewire/livewire": "^4.0",
         "mews/captcha": "^3.4",
         "mews/purifier": "^3.4",
-        "outhebox/blade-flags": "^1.7"
+        "tecnickcom/tc-lib-pdf": "^8.73"
     },
     "require-dev": {
         "barryvdh/laravel-debugbar": "^4.4",

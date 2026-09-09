@@ -29,6 +29,14 @@ class AppServiceProvider extends ServiceProvider
         if (! defined('K_PATH_FONTS')) {
             define('K_PATH_FONTS', resource_path('fonts'));
         }
+
+        // PHP only defines IMAGETYPE_SWC when it was built with zlib support,
+        // but tc-lib-pdf-image lists it unconditionally in Import::LOSSLESS,
+        // so on a build without it every image the PDF draws dies on an
+        // undefined constant. 13 is PHP's own IMAGE_FILETYPE_SWC value.
+        if (! defined('IMAGETYPE_SWC')) {
+            define('IMAGETYPE_SWC', 13);
+        }
     }
 
     /**

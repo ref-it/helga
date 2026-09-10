@@ -8,6 +8,10 @@ use App\Http\Controllers\PlanController;
 use App\Models\Plan;
 use App\Models\Shift;
 use Com\Tecnick\Pdf\Tcpdf;
+use DOMDocument;
+use DOMElement;
+use DOMNode;
+use DOMText;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
@@ -33,27 +37,73 @@ use Illuminate\Support\Facades\Storage;
  */
 final class PlanPdfRenderer
 {
+    /**
+     * Base unit of the vertical rhythm, in mm - 5pt. Every gap between blocks
+     * is a whole multiple of it, so the spacings relate to each other instead
+     * of each having been tuned on its own. Two of them already were multiples
+     * before this was named: the paragraph gap is 2 units, the gap between
+     * shifts 4.
+     *
+     * Spacing inside a line or a cell is deliberately off this grid -
+     * LINE_SPACING, HEAD_PADDING_BOTTOM, CELL_PADDING and the hairline under a
+     * shift title are measured against the type, not against the rhythm of
+     * the blocks.
+     *
+     * Headings take more space above than below, so that a heading binds to
+     * what follows it rather than floating between two blocks. How much less
+     * below depends on whether something else already separates the heading
+     * from its content: a shift title has a rule under it and needs one unit,
+     * a category has its rule beside it and needs the full block gap.
+     */
+    private const SPACE = 1.75;
+
+    /**
+     * The page frame repeats the proportion of the sheet: A4 is 1:sqrt(2), and
+     * so is each pair of opposing margins. Two of the four are fixed by
+     * something outside typography - the left one by the hole punch, the
+     * bottom one by the footer - and the other two follow from them.
+     *
+     * Unlike the block spacings this is deliberately off the SPACE grid: a
+     * margin is a proportion, set once per page, while gaps add up down the
+     * page and have to stay commensurable. The frame and the rhythm inside it
+     * are two different jobs.
+     *
+     * The text block itself cannot also be 1:sqrt(2). At the 172.4mm width
+     * these margins leave, it would need 243.9mm of height, so 53.1mm of
+     * vertical margin instead of 29.9mm - far too much paper to give up on a
+     * form that gets filled in by hand.
+     */
+    private const SQRT2 = 1.4142135623730951;
+
     /** Wide enough to punch holes without hitting the text (DIN 5008 Lochrand). */
     private const MARGIN_LEFT = 22.0;
 
-    private const MARGIN_RIGHT = 15.0;
+    private const MARGIN_RIGHT = self::MARGIN_LEFT / self::SQRT2;
 
-    private const MARGIN_TOP = 12.0;
+    private const MARGIN_TOP = self::MARGIN_BOTTOM / self::SQRT2;
 
     /**
      * Wide enough to hold the page number strip below the text area with air
      * on both sides of it - at 15mm the footer had to sit 7mm from the paper
      * edge, which is past where many printers stop printing.
      */
-    private const MARGIN_BOTTOM = 18.0;
+    private const MARGIN_BOTTOM = 10 * self::SPACE;
 
     /** Distance from the bottom paper edge to the bottom of the page number. */
     private const FOOTER_EDGE_GAP = 10.0;
 
     /** Generous row height so empty slots can be filled in by hand after printing. */
-    private const ROW_MIN_HEIGHT = 10.0;
+    private const ROW_MIN_HEIGHT = 6 * self::SPACE;
 
     private const CELL_PADDING = 2.0;
+
+    /**
+     * Font size of the helper table, in pt - the column labels and the body
+     * cells alike. One size for both keeps a row from reading louder than the
+     * head above it, and it is the single place to change the table's scale:
+     * the head is the reference the cells are meant to match.
+     */
+    private const TABLE_FONT_SIZE = 10.0;
 
     /**
      * Font size of a helper's e-mail address and phone number, in pt. Smaller
@@ -90,12 +140,13 @@ final class PlanPdfRenderer
      * Line height for the rich text fields, which go through the HTML cell
      * renderer and so cannot take LINE_SPACING. Measured to match it: for the
      * 10pt the descriptions are drawn at, LINE_SPACING of 0.8mm makes a
-     * three-line block 13.42mm tall, and 1.34 puts the HTML block at 13.39mm.
-     * The two are matched at that font size only - LINE_SPACING is absolute
-     * and this is relative, so changing the description size needs a new
-     * value here.
+     * three-line block 14.41mm tall, and 1.44 puts the HTML block at 14.43mm.
+     * The two are matched at that font size and in FONT_SANS only -
+     * LINE_SPACING is absolute and this is relative, so changing the
+     * description size or the family needs a new value here. It was 1.34 for
+     * Liberation Sans.
      */
-    private const HTML_LINE_HEIGHT = '1.34';
+    private const HTML_LINE_HEIGHT = '1.44';
 
     /**
      * Space after a text block, in mm. Has to stay clearly larger than the
@@ -103,7 +154,7 @@ final class PlanPdfRenderer
      * block boundary reads as just another wrapped line - which is what makes
      * the contact line run into the description above it.
      */
-    private const PARAGRAPH_GAP = 3.5;
+    private const PARAGRAPH_GAP = 2 * self::SPACE;
 
     /** Height the plan logo is drawn at, in mm. */
     private const LOGO_HEIGHT = 12.0;
@@ -112,15 +163,106 @@ final class PlanPdfRenderer
     private const LOGO_DPI = 600;
 
     /** Grey shared by every rule in the document - table and headings alike. */
-    private const RULE_COLOR = '#999999';
+    /**
+     * The palette, taken from the Tailwind theme the rest of the application
+     * is built on, so that a plan on screen and the same plan on paper are
+     * recognisably one document. sky-700 is the accent the interface uses
+     * (see resources/css/theme.css).
+     *
+     * Tailwind 4 keeps its palette in oklch, which a PDF cannot carry: these
+     * are the sRGB values of those entries. Regenerating them means reading
+     * node_modules/tailwindcss/theme.css and converting - they are not
+     * hand-picked approximations.
+     */
+    private const COLOR_BLACK = '#000000';
+
+    private const COLOR_SKY_700 = '#0069a8';
+
+    private const COLOR_AMBER_800 = '#973c00';
+
+    private const COLOR_ZINC_400 = '#9f9fa9';
+
+    private const COLOR_ZINC_500 = '#71717b';
+
+    private const COLOR_ZINC_600 = '#52525c';
+
+    private const COLOR_ZINC_700 = '#3f3f46';
+
+    private const RULE_COLOR = self::COLOR_ZINC_400;
 
     /**
-     * Space between two blocks of the shift list, in mm. A category heading
-     * keeps the same distance to its first shift as the shifts keep to each
-     * other: a category can hold several shifts, and a tighter gap would bind
-     * only the first one and break the rhythm of the rest.
+     * Width of the bar beside a block quote, in mm. Heavier than the hairlines
+     * that separate the blocks of the document, because this one marks a span
+     * of text rather than a boundary between two.
      */
-    private const SHIFT_GAP = 7.0;
+    private const QUOTE_RULE_WIDTH = 0.6;
+
+    /** Font size of the health certificate badge, in pt. */
+    private const BADGE_FONT_SIZE = 8.0;
+
+    /**
+     * Padding inside the health certificate badge, in mm - one unit beside
+     * the text, two thirds of one above and below it. A 3:2 ratio: the badge
+     * stays a compact strip that does not pull the eye off the shift it
+     * belongs to, while the type no longer touches the frame.
+     *
+     * Sideways it measures wider than it reads, because the side bearings of
+     * the outer glyphs add to it - 1.95mm of visible air for the 1.75mm set
+     * here.
+     *
+     * The vertical one is measured against the type rather than against the
+     * line box, which carries leading above the capitals and below the
+     * descenders: padding added to that came out smaller than it measured,
+     * and unevenly, because whether the label has a descender decides where
+     * its ink stops. It did - 1.14mm above the capitals against 0.68mm below
+     * the "p" of "Gesundheitspass".
+     */
+    private const BADGE_PADDING_X = self::SPACE;
+
+    private const BADGE_PADDING_Y = 2 * self::SPACE / 3;
+
+    /**
+     * Corner radius of the health certificate badge, in mm. The drawing
+     * routine clamps it to half the shorter side, so half the badge height
+     * turns it into a pill.
+     */
+    private const BADGE_RADIUS = self::SPACE / 2;
+
+    /**
+     * Colour of the health certificate badge, type and border alike. Amber
+     * reads as a precondition to meet, where red would read as a prohibition
+     * or an error, and the badge states a requirement for the shift.
+     *
+     * It carries 7.09:1 against the paper, above the 4.5:1 WCAG AA asks of
+     * body text - and because that ratio is computed from luminance, it
+     * survives a greyscale print. The colour is a second cue and never the
+     * only one: the badge says what it means in words, so a reader who does
+     * not see the difference loses nothing (WCAG 1.4.1).
+     *
+     * The box is left unfilled: a tint would carry further across the page
+     * than this one notice deserves, and it would cost toner on a sheet whose
+     * purpose is to be printed.
+     */
+    private const BADGE_COLOR = self::COLOR_AMBER_800;
+
+    /**
+     * Extra air above and below the health certificate badge, in mm, on top
+     * of the gap the shift's rule already leaves. The badge is a boxed element
+     * between two runs of text - the rule above it, the description below -
+     * and its border needs to stand clear of both, or the box reads as
+     * attached to whichever line it sits nearer.
+     */
+    private const BADGE_GAP = self::SPACE;
+
+    /**
+     * Space before a shift heading, in mm - and so between two blocks of the
+     * shift list. A category heading keeps the same distance to its first
+     * shift as the shifts keep to each other: a category can hold several
+     * shifts, and a tighter gap would bind only the first one and break the
+     * rhythm of the rest. Both now go through the same leading gap in
+     * drawShift(), rather than one being a trailing gap somewhere else.
+     */
+    private const SHIFT_GAP = 4 * self::SPACE;
 
     /**
      * Index column ("1", "2", ...), in mm. Wide enough that a two-digit slot
@@ -147,7 +289,57 @@ final class PlanPdfRenderer
 
     private const HEADING_SIZE_SHIFT = 12.0;
 
-    private const FONT = 'liberationsans';
+    /**
+     * The two families the document is set in. Headings take the serif, so
+     * they read as a different voice from the content rather than only a
+     * larger size of it; everything else - descriptions, the helper table and
+     * above all the 9pt contact lines - stays sans, where the disambiguation
+     * of l/1/I and 0/O in e-mail addresses matters more than the character of
+     * the face.
+     *
+     * Both are SIL OFL 1.1. See resources/fonts/README.md for how the
+     * definitions are generated - Adwaita Sans in particular ships only as a
+     * variable font and has to be instanced first.
+     */
+    /**
+     * Indent of a list item or a block quote inside a description, in mm.
+     * Four units, the same distance the shift blocks keep from each other, so
+     * an indented run reads as one step in rather than as its own column.
+     */
+    private const RICH_INDENT = 4 * self::SPACE;
+
+    /**
+     * Indent of a block quote, in mm - two units, half of what a list item
+     * takes. A list needs room for its marker beside the text; a quote only
+     * has to clear its bar, and at the full four units the text drifted away
+     * from the bar it belongs to.
+     */
+    private const QUOTE_INDENT = 2 * self::SPACE;
+
+    /**
+     * How far a word gap may be stretched to justify a line, as a multiple of
+     * its natural width. Beyond that the line is left ragged: a line that had
+     * to break early - because the next word is a URL too wide to share it -
+     * would otherwise take the whole remainder into two or three gaps and
+     * read far worse than an uneven right edge.
+     */
+    private const RICH_MAX_STRETCH = 2.0;
+
+    /**
+     * Colour of a link's text, wherever one appears - in a description, in the
+     * helper table and in the plan's contact line.
+     *
+     * It carries 5.85:1 against the paper, so it clears the 4.5:1 WCAG AA asks
+     * of body text, and 3.59:1 against the black around it, which is what
+     * WCAG wants where a link inside running text is told apart by colour
+     * (technique G183 asks for 3:1). The grey this replaced managed only
+     * 2.16:1 against the text, so the change is an improvement on that count.
+     */
+    private const LINK_COLOR = self::COLOR_SKY_700;
+
+    private const FONT_SANS = 'adwaitasans';
+
+    private const FONT_SERIF = 'merriweather';
 
     /**
      * TeX hyphenation pattern file per locale, relative to
@@ -199,6 +391,15 @@ final class PlanPdfRenderer
      */
     private string $shiftHeadingRole = 'H3';
 
+    /** Counts the lists in a description, so consecutive items share one L element. */
+    private int $richListId = 0;
+
+    /** Counts the block quotes in a description, so their blocks share one BlockQuote element. */
+    private int $richQuoteId = 0;
+
+    /** @var array<string, float> Space width per style and size, in mm. */
+    private array $richSpaceWidths = [];
+
     public function render(Plan $plan, Collection $categoryNames): string
     {
         $this->categoryNames = $categoryNames;
@@ -223,7 +424,7 @@ final class PlanPdfRenderer
             'allowedPaths' => [resource_path('fonts'), resource_path('hyphenation')],
         ]);
         $this->lineHeightCache = [];
-        $this->pdf->setCreator('helga');
+        $this->pdf->setCreator('HELGA');
 
         // the title is what a screen reader announces for the document, and
         // PDF/UA mode makes the viewer show it instead of the file name
@@ -305,7 +506,7 @@ final class PlanPdfRenderer
     {
         $logoWidth = $this->drawLogo($plan);
 
-        $this->font('B', self::HEADING_SIZE_PLAN);
+        $this->font('B', self::HEADING_SIZE_PLAN, self::FONT_SERIF);
         $this->bookmark($plan->title, 0);
         $this->beginTag('H1');
         $this->text($plan->title, self::MARGIN_LEFT, $this->cursorY, $this->contentWidth - $logoWidth);
@@ -314,43 +515,64 @@ final class PlanPdfRenderer
         // baseline and leaves air below on its own - so the same gap reads as
         // tighter under a logo, and it gets the wider block gap instead.
         $this->cursorY += max($this->lastHeight(), $logoWidth > 0 ? self::LOGO_HEIGHT : 0.0)
-            + ($logoWidth > 0 ? self::SHIFT_GAP : 4.0);
+            + ($logoWidth > 0 ? self::SHIFT_GAP : self::PARAGRAPH_GAP);
 
         if ($plan->description) {
             $this->cursorY = $this->html($plan->description, 10) + self::PARAGRAPH_GAP;
         }
 
-        $contact = $this->contactLine($plan);
-        if ($contact !== null) {
-            // #444 keeps the contrast ratio above the 4.5:1 that WCAG AA asks
-            // for body text - a lighter grey would look right but fail it
+        $contacts = $this->contactValues($plan);
+        if ($contacts !== []) {
+            // zinc-700 carries 10.44:1 against the paper, well above the
+            // 4.5:1 WCAG AA asks for body text - a lighter step would look
+            // right and come closer to failing it
             $label = __('plan.responsible').': ';
+            $separator = ' | ';
 
-            // Label and values are one paragraph for a screen reader, but two
-            // draw calls, because a text cell has a single weight. The values
-            // start where the bold label ends.
+            // Label and values are one paragraph for a screen reader, but
+            // several draw calls: a text cell has a single weight and a single
+            // colour, and each value carries its own link.
             $this->beginTag('P');
 
             $this->font('B', 10);
             $labelWidth = $this->measureWidth($label);
-            $this->text($label, self::MARGIN_LEFT, $this->cursorY, $this->contentWidth, color: '#444444');
+            $this->text($label, self::MARGIN_LEFT, $this->cursorY, $this->contentWidth, color: self::COLOR_ZINC_700);
             $labelHeight = $this->lastHeight();
 
             $this->font('', 10);
-            $this->text(
-                $contact,
-                self::MARGIN_LEFT + $labelWidth,
-                $this->cursorY,
-                $this->contentWidth - $labelWidth,
-                color: '#444444',
-            );
+            $x = self::MARGIN_LEFT + $labelWidth;
+            $separatorWidth = $this->measureWidth($separator);
+
+            foreach ($contacts as $index => $value) {
+                if ($index > 0) {
+                    $this->text($separator, $x, $this->cursorY, $separatorWidth, color: self::COLOR_ZINC_700);
+                    $x += $separatorWidth;
+                }
+
+                $href = self::contactLink($value);
+                $width = $this->measureWidth($value);
+                $this->text(
+                    $value,
+                    $x,
+                    $this->cursorY,
+                    $width,
+                    color: $href !== '' ? self::LINK_COLOR : self::COLOR_ZINC_700,
+                );
+
+                if ($href !== '') {
+                    $this->linkArea($href, $x, $this->cursorY, $width, 10.0);
+                }
+
+                $x += $width;
+            }
 
             $this->endTag();
 
             $this->cursorY += max($labelHeight, $this->lastHeight());
         }
 
-        $this->cursorY += 5.0;
+        // No trailing gap: the heading that follows brings its own leading
+        // one, so the first block of a plan is spaced like every later one.
     }
 
     /**
@@ -462,18 +684,20 @@ final class PlanPdfRenderer
      * The contact values only - the "Kontakt:" label is drawn separately so it
      * can be bold while the values stay regular.
      */
-    private function contactLine(Plan $plan): ?string
+    /**
+     * The plan's contact details, as the values to draw. Kept as a list rather
+     * than one joined string because each value is drawn on its own: it gets
+     * the link colour and a clickable area, while the separator between them
+     * stays part of the surrounding line.
+     *
+     * @return list<string>
+     */
+    private function contactValues(Plan $plan): array
     {
-        $parts = array_values(array_filter([
+        return array_values(array_filter([
             $plan->contact_email,
             $plan->contact_phone,
         ], fn (?string $v): bool => ! empty($v)));
-
-        if ($parts === []) {
-            return null;
-        }
-
-        return implode(' | ', $parts);
     }
 
     private function drawShifts(Plan $plan): void
@@ -499,15 +723,31 @@ final class PlanPdfRenderer
 
     private function drawGroupHeading(string $name): void
     {
-        // air above, but not at the very top of a fresh page, where it would
-        // look like a stray gap
-        $spacing = $this->cursorY > self::MARGIN_TOP ? 12.0 : 0.0;
-        $this->ensureSpace($spacing + 16.0);
-        $this->cursorY += $spacing;
-
-        $this->font('B', self::HEADING_SIZE_CATEGORY);
+        $this->font('B', self::HEADING_SIZE_CATEGORY, self::FONT_SERIF);
         $labelWidth = $this->measureWidth($name);
         $height = $this->measure('Xg', $this->contentWidth);
+
+        // Eight units - twice the gap before a shift heading, so a category
+        // reads as a section break rather than as one more block. At six it
+        // was only 1.5x and barely told the two levels apart once the double
+        // gap it used to inherit from the block above was gone.
+        //
+        // Not at the very top of a fresh page, though, where it would look
+        // like a stray gap.
+        $spacing = $this->cursorY > self::MARGIN_TOP ? 8 * self::SPACE : 0.0;
+
+        // the heading plus the gap down to its first shift, so a category
+        // never ends up alone at the foot of a page. Measured rather than
+        // estimated - the 16mm this used to reserve predates both the font
+        // and the heading size it was guessed for.
+        $this->ensureSpace($spacing + $height + self::SHIFT_GAP);
+
+        // the check above may have started that fresh page itself
+        if ($this->cursorY <= self::MARGIN_TOP) {
+            $spacing = 0.0;
+        }
+
+        $this->cursorY += $spacing;
 
         $this->bookmark($name, 1);
         $this->beginTag('H2');
@@ -531,14 +771,37 @@ final class PlanPdfRenderer
             ));
         }
 
-        $this->cursorY += $height + self::SHIFT_GAP;
+        $this->cursorY += $height;
     }
 
     private function drawShift(Shift $shift): void
     {
-        // keep the heading with at least the table header and one slot row,
-        // so a shift never starts at the very bottom of a page
-        $this->ensureSpace(18.0 + self::ROW_MIN_HEIGHT);
+        // The gap before a heading belongs to the heading, not to whatever
+        // block happens to precede it. Hung on the previous block it came out
+        // position-dependent - 5.25mm after the plan header against 7mm after
+        // another shift - so the first shift of a plan had less air than all
+        // the others. Suppressed at the top of a page, where it would read as
+        // a stray gap.
+        $leading = $this->cursorY > self::MARGIN_TOP ? self::SHIFT_GAP : 0.0;
+
+        // Keep the heading with at least the table head and one slot row, so
+        // a shift never starts at the very bottom of a page. Measured rather
+        // than estimated: the 18mm this used to reserve was guessed against
+        // the old font and heading size and matches neither any more.
+        $this->ensureSpace(
+            $leading
+            + $this->measureShiftHeading($shift)['height']
+            + 1.0 + self::SPACE
+            + $this->tableHeadHeight()
+            + self::ROW_MIN_HEIGHT
+        );
+
+        // the check above may have started that fresh page itself
+        if ($this->cursorY <= self::MARGIN_TOP) {
+            $leading = 0.0;
+        }
+
+        $this->cursorY += $leading;
 
         $this->drawShiftHeading($shift);
 
@@ -547,28 +810,64 @@ final class PlanPdfRenderer
         }
 
         $this->drawHelperTable($shift);
-
-        $this->cursorY += self::SHIFT_GAP;
     }
 
-    private function drawShiftHeading(Shift $shift): void
+    /**
+     * Measures a shift's heading without drawing it, so that drawShift() can
+     * check whether it still fits on the page together with the table head
+     * and one row.
+     *
+     * @return array{date: string, height: float, baseline: float, titleBaseline: float, dateBaseline: float}
+     */
+    private function measureShiftHeading(Shift $shift): array
     {
         $date = str_replace('<br>', "\n", PlanController::buildDateString($shift->start, $shift->end));
 
         $this->font('', 10);
         $dateHeight = $this->measure($date, $this->contentWidth * 0.45);
+        $dateBaseline = $this->lastBaselineOffset($dateHeight, $this->measure('X', $this->contentWidth * 0.45));
 
-        $this->font('B', self::HEADING_SIZE_SHIFT);
+        $this->font('B', self::HEADING_SIZE_SHIFT, self::FONT_SERIF);
         $titleHeight = $this->measure($shift->title, $this->contentWidth * 0.55);
+        $titleBaseline = $this->lastBaselineOffset($titleHeight, $this->measure('X', $this->contentWidth * 0.55));
 
-        $height = max($titleHeight, $dateHeight);
+        // Title and date share the baseline of their last line - see
+        // lastBaselineOffset(). Whichever reaches its baseline later pushes it
+        // down for both, and the block is as tall as the lower of the two ends
+        // up needing.
+        $baseline = max($titleBaseline, $dateBaseline);
 
-        $this->font('B', self::HEADING_SIZE_SHIFT);
+        return [
+            'date' => $date,
+            'height' => max(
+                $titleHeight + $baseline - $titleBaseline,
+                $dateHeight + $baseline - $dateBaseline,
+            ),
+            'baseline' => $baseline,
+            'titleBaseline' => $titleBaseline,
+            'dateBaseline' => $dateBaseline,
+        ];
+    }
+
+    private function drawShiftHeading(Shift $shift): void
+    {
+        ['date' => $date, 'height' => $height, 'baseline' => $baseline,
+            'titleBaseline' => $titleBaseline, 'dateBaseline' => $dateBaseline] = $this->measureShiftHeading($shift);
+
+        $dateWidth = $this->contentWidth * 0.45;
+        $titleWidth = $this->contentWidth * 0.55;
+
+        $this->font('B', self::HEADING_SIZE_SHIFT, self::FONT_SERIF);
         // the outline mirrors the heading levels, so a plan without
         // categories does not indent its shifts under a level that is not there
         $this->bookmark($shift->title, $this->shiftHeadingRole === 'H3' ? 2 : 1);
         $this->beginTag($this->shiftHeadingRole);
-        $this->text($shift->title, self::MARGIN_LEFT, $this->cursorY, $this->contentWidth * 0.55);
+        $this->text(
+            $shift->title,
+            self::MARGIN_LEFT,
+            $this->cursorY + $baseline - $titleBaseline,
+            $titleWidth,
+        );
         $this->endTag();
 
         // the date sits beside the title visually, but it reads after it
@@ -576,18 +875,21 @@ final class PlanPdfRenderer
         $this->beginTag('P');
         $this->text(
             $date,
-            self::MARGIN_LEFT + $this->contentWidth * 0.55,
-            $this->cursorY,
-            $this->contentWidth * 0.45,
+            self::MARGIN_LEFT + $titleWidth,
+            $this->cursorY + $baseline - $dateBaseline,
+            $dateWidth,
             halign: 'R',
         );
         $this->endTag();
 
         $this->cursorY += $height;
 
+        // The hairline offset stays off the grid - it belongs to the title,
+        // not to the block boundary. Below the rule one unit is enough: the
+        // rule itself already does the separating.
         $this->cursorY += 1.0;
         $this->rule($this->cursorY, 0.18, self::RULE_COLOR);
-        $this->cursorY += 2.0;
+        $this->cursorY += self::SPACE;
 
         // below the rule, so it sits with the shift's details rather than
         // with its title
@@ -601,28 +903,51 @@ final class PlanPdfRenderer
      */
     private function drawHealthCertificateBadge(): void
     {
-        $this->font('B', 8);
-        $label = __('shift.healthCertificateRequired');
-        $width = $this->measureWidth($label) + 3.0;
-        $height = $this->measure($label, $width) + 1.0;
+        $this->cursorY += self::BADGE_GAP;
 
-        $this->pushStyle(['lineWidth' => 0.18, 'lineColor' => '#666666']);
-        $this->artifact($this->pdf->graph->getBasicRect(
+        $this->font('B', self::BADGE_FONT_SIZE);
+        $label = __('shift.healthCertificateRequired');
+
+        // the metrics are in pt while the document is in mm; usize is the
+        // font size in document units, so their quotient converts
+        $metrics = $this->pdf->font->getCurrentFont();
+        $toMm = $metrics['usize'] / $metrics['size'];
+        $ascent = $metrics['ascent'] * $toMm;
+        $capHeight = $metrics['capheight'] * $toMm;
+        $descent = abs($metrics['descent']) * $toMm;
+
+        $width = $this->measureWidth($label) + (2 * self::BADGE_PADDING_X);
+        $height = $capHeight + $descent + (2 * self::BADGE_PADDING_Y);
+
+        $this->pushStyle(['lineWidth' => 0.18, 'lineColor' => self::BADGE_COLOR]);
+        $this->artifact($this->pdf->graph->getRoundedRect(
             self::MARGIN_LEFT,
             $this->cursorY,
             $width,
             $height,
-            'D',
+            self::BADGE_RADIUS,
+            self::BADGE_RADIUS,
+            corner: '1111',
+            mode: 'D',
         ));
         $this->popStyle();
 
         // the box is decoration, but the requirement itself has to reach a
         // screen reader as ordinary text
         $this->beginTag('P');
-        $this->text($label, self::MARGIN_LEFT + 1.5, $this->cursorY + 0.5, $width, color: '#666666');
+        $this->text(
+            $label,
+            self::MARGIN_LEFT + self::BADGE_PADDING_X,
+            // text() places a line box, so the leading above the capitals has
+            // to come off: it puts the cap tops one padding below the frame,
+            // and the descenders one padding above its bottom edge
+            $this->cursorY + self::BADGE_PADDING_Y + $capHeight - $ascent,
+            $width,
+            color: self::BADGE_COLOR,
+        );
         $this->endTag();
 
-        $this->cursorY += $height + 2.0;
+        $this->cursorY += $height + self::BADGE_GAP + self::SPACE;
     }
 
     private function drawHelperTable(Shift $shift): void
@@ -651,9 +976,21 @@ final class PlanPdfRenderer
             // printout is filled in by hand, so the lines have to be there to
             // write on.
             $stack = [
-                [$subscription->name ?? '', 11.0, true, 0.0],
-                [$subscription->email ?? '', self::CONTACT_FONT_SIZE, false, self::CONTACT_LINE_GAP],
-                [$subscription->phone ?? '', self::CONTACT_FONT_SIZE, false, self::CONTACT_LINE_GAP],
+                [$subscription->name ?? '', self::TABLE_FONT_SIZE, true, 0.0, ''],
+                [
+                    $subscription->email ?? '',
+                    self::CONTACT_FONT_SIZE,
+                    false,
+                    self::CONTACT_LINE_GAP,
+                    self::contactLink((string) ($subscription->email ?? '')),
+                ],
+                [
+                    $subscription->phone ?? '',
+                    self::CONTACT_FONT_SIZE,
+                    false,
+                    self::CONTACT_LINE_GAP,
+                    self::contactLink((string) ($subscription->phone ?? '')),
+                ],
             ];
 
             $nameWidth = $columns['name']['width'] - 2 * self::CELL_PADDING;
@@ -663,7 +1000,7 @@ final class PlanPdfRenderer
             // there is a line to write each value on. Measured once and reused
             // for drawing, so the lines and the borders cannot drift apart.
             $lineHeights = [];
-            foreach ($stack as [$text, $fontSize, $hyphenate, $gap]) {
+            foreach ($stack as [$text, $fontSize, $hyphenate, $gap, $href]) {
                 $this->font('', $fontSize);
                 $this->breakMode($hyphenate);
                 $lineHeights[] = $gap + ($text === ''
@@ -674,7 +1011,7 @@ final class PlanPdfRenderer
 
             // The index and clothing size are always a single short token and
             // can never drive the row height, so they are not measured.
-            $this->font('', 11);
+            $this->font('', self::TABLE_FONT_SIZE);
             $commentHeight = $this->measure($comment, $columns['comment']['width'] - 2 * self::CELL_PADDING);
 
             $rowHeight = max(
@@ -701,7 +1038,7 @@ final class PlanPdfRenderer
             // cells (required) so a reader can still count the free places.
             $this->beginTag('TR');
 
-            $this->font('', 11);
+            $this->font('', self::TABLE_FONT_SIZE);
             $this->beginTag('TD', null, [], true);
             // Right-aligned, ending a cell padding short of the column rule:
             // left-aligned in the full column it sat flush against the table
@@ -715,7 +1052,7 @@ final class PlanPdfRenderer
                 $textY,
                 self::COL_INDEX_WIDTH - self::CELL_PADDING,
                 halign: 'R',
-                color: '#666666',
+                color: self::COLOR_ZINC_500,
             );
             $this->endTag();
 
@@ -723,11 +1060,24 @@ final class PlanPdfRenderer
             // person, so they are not columns of their own
             $this->beginTag('TD', null, [], true);
             $lineY = $textY;
-            foreach ($stack as $line => [$text, $fontSize, $hyphenate, $gap]) {
+            foreach ($stack as $line => [$text, $fontSize, $hyphenate, $gap, $href]) {
                 if ($text !== '') {
                     $this->font('', $fontSize);
                     $this->breakMode($hyphenate);
-                    $this->text($text, $columns['name']['x'] + self::CELL_PADDING, $lineY + $gap, $nameWidth);
+                    $x = $columns['name']['x'] + self::CELL_PADDING;
+                    $this->text(
+                        $text,
+                        $x,
+                        $lineY + $gap,
+                        $nameWidth,
+                        color: $href !== '' ? self::LINK_COLOR : self::COLOR_BLACK,
+                    );
+
+                    // an e-mail address and a phone number are worth a tap on
+                    // screen, even though the sheet exists to be printed
+                    if ($href !== '') {
+                        $this->linkArea($href, $x, $lineY + $gap, $this->measureWidth($text), $fontSize);
+                    }
                 }
 
                 $lineY += $lineHeights[$line];
@@ -737,7 +1087,7 @@ final class PlanPdfRenderer
 
             // the stack above left the font on its last line's size, so the
             // remaining cells have to select their own again
-            $this->font('', 11);
+            $this->font('', self::TABLE_FONT_SIZE);
 
             if (isset($columns['size'])) {
                 $this->beginTag('TD', null, [], true);
@@ -809,7 +1159,7 @@ final class PlanPdfRenderer
      */
     private function tableHeadHeight(): float
     {
-        $this->font('B', 10);
+        $this->font('B', self::TABLE_FONT_SIZE);
 
         return $this->measure('Xg', $this->contentWidth) + self::HEAD_PADDING_BOTTOM;
     }
@@ -819,7 +1169,7 @@ final class PlanPdfRenderer
         $top = $this->cursorY;
         $height = $this->tableHeadHeight();
 
-        $this->font('B', 10);
+        $this->font('B', self::TABLE_FONT_SIZE);
 
         $this->beginTag('TR');
         foreach ($columns as $column) {
@@ -842,7 +1192,7 @@ final class PlanPdfRenderer
                     $column['x'] + self::CELL_PADDING,
                     $top,
                     $column['width'] - self::CELL_PADDING,
-                    color: '#555555',
+                    color: self::COLOR_ZINC_600,
                 );
             }
 
@@ -877,6 +1227,30 @@ final class PlanPdfRenderer
         }
     }
 
+    /**
+     * The bar beside a block quote, drawn in segments as the quote is laid
+     * out: one per line and one per gap between its blocks. Segments meet, so
+     * they read as one bar - and a quote broken across pages gets a bar on
+     * each of them without any bookkeeping.
+     *
+     * It sits at the left edge the surrounding text keeps, so the quote reads
+     * as indented from the bar rather than the bar as hanging in the margin.
+     */
+    private function quoteRule(float $x, float $top, float $bottom): void
+    {
+        if ($bottom <= $top) {
+            return;
+        }
+
+        $this->artifact($this->pdf->graph->getLine(
+            $x,
+            $top,
+            $x,
+            $bottom,
+            ['lineWidth' => self::QUOTE_RULE_WIDTH, 'lineColor' => self::RULE_COLOR],
+        ));
+    }
+
     private function rule(float $y, float $width, string $color): void
     {
         $this->artifact($this->pdf->graph->getLine(
@@ -904,7 +1278,7 @@ final class PlanPdfRenderer
             // Pagination is page furniture, not document content: marking it
             // as an artifact keeps "3 / 68" out of the reading order instead
             // of interrupting the last table row on every page.
-            $this->pushStyle(['fillColor' => '#666666']);
+            $this->pushStyle(['fillColor' => self::COLOR_ZINC_500]);
             // Anchored to the paper edge rather than to the text area, so the
             // gap that matters for printing cannot drift when the margin
             // changes.
@@ -939,9 +1313,9 @@ final class PlanPdfRenderer
         $this->cursorY = self::MARGIN_TOP;
     }
 
-    private function font(string $style, float $size): void
+    private function font(string $style, float $size, string $family = self::FONT_SANS): void
     {
-        $this->pdf->font->insert($this->pdf->pon, self::FONT, $style, $size);
+        $this->pdf->font->insert($this->pdf->pon, $family, $style, $size);
     }
 
     private function text(
@@ -950,7 +1324,9 @@ final class PlanPdfRenderer
         float $y,
         float $width,
         string $halign = 'L',
-        string $color = '#000000',
+        string $color = self::COLOR_BLACK,
+        bool $underline = false,
+        bool $strike = false,
     ): void {
         if ($txt === '') {
             return;
@@ -967,6 +1343,12 @@ final class PlanPdfRenderer
             width: $width,
             linespace: self::LINE_SPACING,
             halign: $halign,
+            // J means "stretch to $width", and the library treats the only
+            // line of a single-line string as the last one, which it leaves
+            // alone unless jlast says otherwise
+            jlast: false,
+            underline: $underline,
+            linethrough: $strike,
             drawcell: false,
         );
         $this->popStyle();
@@ -1052,7 +1434,9 @@ final class PlanPdfRenderer
     /** Height of a single line at the given font size. */
     private function lineHeight(float $fontSize): float
     {
-        $key = (string) $fontSize;
+        // keyed by family as well, or a size measured in one family would be
+        // handed back for the other
+        $key = self::FONT_SANS.'/'.$fontSize;
 
         if (! isset($this->lineHeightCache[$key])) {
             $this->font('', $fontSize);
@@ -1060,6 +1444,28 @@ final class PlanPdfRenderer
         }
 
         return $this->lineHeightCache[$key];
+    }
+
+    /**
+     * How far below the top of a text block the baseline of its last line
+     * sits, in mm, for the currently selected font. Two blocks drawn so that
+     * these offsets coincide share a baseline.
+     *
+     * That is what makes a heading and the date beside it read as one line
+     * although they differ in size and family. Lining up the bottoms of their
+     * boxes instead leaves the baselines apart by the difference of their
+     * descenders - measured against the shift heading, 0.34mm for a one-line
+     * date and 0.85mm for one that spans two days.
+     */
+    private function lastBaselineOffset(float $blockHeight, float $oneLineHeight): float
+    {
+        $metrics = $this->pdf->font->getCurrentFont();
+
+        // the metrics are in pt while the document is in mm; usize is the
+        // font size expressed in document units, so their quotient converts
+        $ascent = $metrics['ascent'] * $metrics['usize'] / $metrics['size'];
+
+        return $blockHeight - $oneLineHeight + $ascent;
     }
 
     /**
@@ -1093,35 +1499,638 @@ final class PlanPdfRenderer
     }
 
     /**
+     * Splits one of the sanitized rich text fields into blocks of words.
+     *
+     * The description is laid out here rather than handed to the HTML cell
+     * renderer, because that one cannot justify a line that carries more than
+     * one inline style - see html() for the mechanics. Everything the
+     * sanitizer allows is covered: p and blockquote as blocks, ul/ol/li as
+     * blocks with a marker, br as a forced break, and strong/em/u/s as the
+     * styles of the words between them. An <a> keeps its text; the export
+     * carries no link annotations either way.
+     *
+     * @return list<array{tag: string, list: int, quote: int, quoteIndent: float, ordered: bool, marker: string, indent: float, words: list<array{text: string, style: string, underline: bool, strike: bool, href: string, break: bool, space: bool}>}>
+     */
+    private function richBlocks(string $html): array
+    {
+        $doc = new DOMDocument;
+        // the sanitized value is a fragment, and libxml needs the encoding
+        // declared or it reads the bytes as Latin-1
+        $doc->loadHTML(
+            '<?xml encoding="UTF-8"><body>'.$html.'</body>',
+            LIBXML_NOERROR | LIBXML_NOWARNING,
+        );
+
+        $body = $doc->getElementsByTagName('body')->item(0);
+
+        $blocks = [];
+        if ($body instanceof DOMNode) {
+            $this->collectRichBlocks($body, $blocks, 0, 0.0, 0.0);
+        }
+
+        return array_values(array_filter($blocks, static fn (array $b): bool => $b['words'] !== []));
+    }
+
+    /**
+     * @param  list<array{tag: string, list: int, quote: int, quoteIndent: float, ordered: bool, marker: string, indent: float, words: list<array<string, mixed>>}>  $blocks
+     */
+    private function collectRichBlocks(DOMNode $node, array &$blocks, int $quote, float $indent, float $quoteIndent): void
+    {
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof DOMText) {
+                // text outside any block - descriptions saved before the
+                // rich-text editor are a single run of it
+                $words = [];
+                $this->collectRichWords($child, ['style' => '', 'underline' => false, 'strike' => false, 'href' => ''], $words);
+                if ($words !== []) {
+                    $blocks[] = ['tag' => 'P', 'list' => 0, 'quote' => $quote, 'quoteIndent' => $quoteIndent, 'ordered' => false, 'marker' => '', 'indent' => $indent, 'words' => $words];
+                }
+
+                continue;
+            }
+
+            if (! $child instanceof DOMElement) {
+                continue;
+            }
+
+            $tag = strtolower($child->tagName);
+
+            if ($tag === 'ul' || $tag === 'ol') {
+                $this->richListId++;
+                $ordered = $tag === 'ol';
+                $number = 0;
+                foreach ($child->childNodes as $item) {
+                    if (! $item instanceof DOMElement || strtolower($item->tagName) !== 'li') {
+                        continue;
+                    }
+
+                    $number++;
+                    $words = [];
+                    $this->collectRichWords($item, ['style' => '', 'underline' => false, 'strike' => false, 'href' => ''], $words);
+                    $blocks[] = [
+                        'tag' => 'LI',
+                        'list' => $this->richListId,
+                        'quote' => $quote,
+                        'quoteIndent' => $quoteIndent,
+                        'ordered' => $ordered,
+                        'marker' => $ordered ? $number.'.' : '•',
+                        'indent' => $indent + self::RICH_INDENT,
+                        'words' => $words,
+                    ];
+                }
+
+                continue;
+            }
+
+            if ($tag === 'blockquote') {
+                $this->richQuoteId++;
+                // the bar belongs to the quote, so it is drawn at the indent
+                // the quote starts from - not at the one of whatever block
+                // inside it happens to be deeper, such as a list
+                $this->collectRichBlocks(
+                    $child,
+                    $blocks,
+                    $this->richQuoteId,
+                    $indent + self::QUOTE_INDENT,
+                    $indent,
+                );
+
+                continue;
+            }
+
+            // p, or anything else the sanitizer let through: its inline
+            // content becomes one block
+            $words = [];
+            $this->collectRichWords($child, ['style' => '', 'underline' => false, 'strike' => false, 'href' => ''], $words);
+            if ($words !== []) {
+                $blocks[] = ['tag' => 'P', 'list' => 0, 'quote' => $quote, 'quoteIndent' => $quoteIndent, 'ordered' => false, 'marker' => '', 'indent' => $indent, 'words' => $words];
+            }
+        }
+    }
+
+    /**
+     * @param  array{style: string, underline: bool, strike: bool, href: string}  $state
+     * @param  list<array<string, mixed>>  $words
+     * @param  array{break: bool, space: bool}  $flow
+     * @return array{break: bool, space: bool}
+     */
+    private function collectRichWords(DOMNode $node, array $state, array &$words, array $flow = ['break' => false, 'space' => false]): array
+    {
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof DOMText) {
+                $text = $child->textContent;
+                $chunks = preg_split('/\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                if ($chunks === []) {
+                    // whitespace only, but it still separates what surrounds it
+                    $flow['space'] = $flow['space'] || $text !== '';
+
+                    continue;
+                }
+
+                // Whether a space precedes a word cannot be recovered from the
+                // words alone: "<s>text</s>." has none, "</s> and" has one.
+                // Splitting on whitespace throws that away, so it is carried
+                // along here - otherwise a full stop after an inline tag ends
+                // up detached from the word it belongs to.
+                $leading = $flow['space'] || preg_match('/^\s/u', $text) === 1;
+                foreach ($chunks as $index => $word) {
+                    $words[] = $state + [
+                        'text' => $word,
+                        'break' => $flow['break'],
+                        'space' => $words !== [] && ($index > 0 || $leading),
+                    ];
+                    $flow['break'] = false;
+                }
+
+                $flow['space'] = preg_match('/\s$/u', $text) === 1;
+
+                continue;
+            }
+
+            if (! $child instanceof DOMElement) {
+                continue;
+            }
+
+            $tag = strtolower($child->tagName);
+
+            if ($tag === 'br') {
+                $flow['break'] = true;
+
+                continue;
+            }
+
+            if ($tag === 'a') {
+                $link = $state;
+                $link['href'] = trim($child->getAttribute('href'));
+                $flow = $this->collectRichWords($child, $link, $words, $flow);
+
+                continue;
+            }
+
+            $next = $state;
+            if ($tag === 'strong' || $tag === 'b') {
+                $next['style'] = str_contains($next['style'], 'I') ? 'BI' : 'B';
+            } elseif ($tag === 'em' || $tag === 'i') {
+                $next['style'] = str_contains($next['style'], 'B') ? 'BI' : 'I';
+            } elseif ($tag === 'u') {
+                $next['underline'] = true;
+            } elseif ($tag === 's') {
+                $next['strike'] = true;
+            }
+
+            $flow = $this->collectRichWords($child, $next, $words, $flow);
+        }
+
+        return $flow;
+    }
+
+    /**
+     * Drops a <p> that is the only child of an <li>.
+     *
+     * Such a paragraph says nothing the <li> does not already say, but the
+     * cell renderer treats it as a block: it breaks the line after the list
+     * marker and puts paragraph margins between the items, so the bullet ends
+     * up alone above its text. The rich-text editor emits this shape
+     * routinely, so it is unwrapped at render time rather than in the stored
+     * value - on the web it renders correctly either way.
+     *
+     * Only an <li> whose entire content is that one paragraph matches, so an
+     * item that genuinely holds several blocks keeps its structure.
+     */
+    public static function unwrapListParagraphs(string $html): string
+    {
+        // The content may not contain a paragraph tag of its own: with a plain
+        // .*? the match would span from the first <p> to the last </p> of an
+        // item that holds two paragraphs and splice them into one broken run.
+        return (string) preg_replace(
+            '#(<li(?:\s[^>]*)?>)\s*<p(?:\s[^>]*)?>((?:(?!</?p[\s/>]).)*)</p>\s*(</li>)#is',
+            '$1$2$3',
+            $html,
+        );
+    }
+
+    /**
      * Renders one of the sanitized rich text fields and returns the y position
      * just below it, so the caller can carry on flowing content.
      */
     private function html(string $html, float $size): float
     {
-        $this->font('', $size);
-        $this->ensureSpace(8.0);
+        $blocks = $this->richBlocks(self::unwrapListParagraphs($html));
+        if ($blocks === []) {
+            return $this->cursorY;
+        }
 
-        // addHTMLCell() creates a structure element for every HTML block
-        // element it renders, but writes bare text as loose marked content -
-        // which would hang directly off the enclosing Document, and a grouping
-        // element may not hold content items (PDF/UA-2, Table 5). Descriptions
-        // saved before the rich-text editor are plain text, so those get a
-        // paragraph of their own. Doing it here rather than wrapping the whole
-        // cell in a P tag keeps content that already brings its own blocks
-        // from ending up as a P inside a P, or a list inside a P.
-        $wrapper = preg_match('#<(?:p|ul|ol|blockquote)[\s/>]#i', $html) === 1 ? 'div' : 'p';
+        // The lines are broken here, not by the HTML cell renderer, because
+        // that one cannot justify a line carrying more than one inline style:
+        // it drops the TJ array that composite fonts need - the Tw operator
+        // applies only to the single-byte code 32, which an Identity-H font
+        // never emits (ISO 32000-2, 9.3.3) - writes each run as a plain Tj
+        // instead and puts the whole of a run's allowance into the gap before
+        // the next one, measured at 2.27 space widths where one belongs.
+        //
+        // The text API justifies a single run to any target width correctly,
+        // so each run is drawn against its own target and the gaps between
+        // runs are advanced by hand.
+        $this->richSpaceWidths = [];
+        $this->breakMode(false, false);
 
-        // The wrapper is ours, not user input - the field content itself is
-        // already restricted to DescriptionSanitizer::ALLOWED_HTML. Descriptions
-        // are set justified; the table around them is the document's grid, and
-        // a ragged right edge beside it reads as unfinished.
-        $wrapped = '<'.$wrapper.' style="line-height: '.self::HTML_LINE_HEIGHT.'; text-align: justify">'
-            .$html.'</'.$wrapper.'>';
+        $openList = 0;
+        $openQuote = 0;
+        $previous = null;
+        foreach ($blocks as $block) {
+            if ($previous !== null) {
+                $gapTop = $this->cursorY;
 
-        $this->pdf->addHTMLCell($wrapped, posx: self::MARGIN_LEFT, posy: $this->cursorY, width: $this->contentWidth);
+                // items of one list stay tight; between blocks it is the same
+                // gap the description keeps to whatever follows it
+                $this->cursorY += $block['list'] !== 0 && $block['list'] === $previous['list']
+                    ? 0.0
+                    : self::PARAGRAPH_GAP;
 
-        $box = $this->pdf->getLastBBox();
+                // the bar runs through the gap as well, or it would break into
+                // one piece per block
+                if ($block['quote'] !== 0 && $block['quote'] === $previous['quote']) {
+                    $this->quoteRule(
+                        self::MARGIN_LEFT + $block['quoteIndent'],
+                        $gapTop,
+                        $this->cursorY,
+                    );
+                }
+            }
 
-        return $box['y'] + $box['h'];
+            // a quote may hold a list, so it is opened first and closed last
+            if ($block['quote'] !== $openQuote) {
+                if ($openList !== 0) {
+                    $this->endTag();
+                    $openList = 0;
+                }
+
+                if ($openQuote !== 0) {
+                    $this->endTag();
+                }
+
+                $openQuote = $block['quote'];
+                if ($openQuote !== 0) {
+                    $this->beginTag('BlockQuote');
+                }
+            }
+
+            if ($block['list'] !== $openList) {
+                if ($openList !== 0) {
+                    $this->endTag();
+                }
+
+                $openList = $block['list'];
+                if ($openList !== 0) {
+                    // An L whose items carry an Lbl has to say how they are
+                    // numbered, and not with None (PDF/UA-2, 8.2.5.25).
+                    // ListNumbering belongs to the List attribute owner, so /O
+                    // has to be declared with it - the library writes the pairs
+                    // into /A verbatim and adds no owner of its own.
+                    $this->beginTag('L', null, [
+                        'O' => 'List',
+                        'ListNumbering' => $block['ordered'] === true ? 'Decimal' : 'Disc',
+                    ]);
+                }
+            }
+
+            $this->drawRichBlock($block, $size);
+            $previous = $block;
+        }
+
+        if ($openList !== 0) {
+            $this->endTag();
+        }
+
+        if ($openQuote !== 0) {
+            $this->endTag();
+        }
+
+        $this->breakMode(true);
+
+        return $this->cursorY;
+    }
+
+    /**
+     * @param  array{tag: string, list: int, quote: int, quoteIndent: float, ordered: bool, marker: string, indent: float, words: list<array<string, mixed>>}  $block
+     */
+    private function drawRichBlock(array $block, float $size): void
+    {
+        $available = $this->contentWidth - $block['indent'];
+        $lines = $this->breakRichLines($block['words'], $available, $size);
+        $lineHeight = $this->lineHeight($size);
+        $item = $block['tag'] === 'LI';
+
+        if ($item) {
+            $this->beginTag('LI');
+        }
+
+        foreach ($lines as $index => $line) {
+            // A single word wider than the column - a URL, typically. Our own
+            // breaking works on words and cannot see inside one, but the
+            // library can break it at the zero-width points it finds, so that
+            // one line is handed over whole. Left ragged: there is nothing to
+            // distribute slack between.
+            $word = count($line['words']) === 1 ? $line['words'][0] : null;
+            $long = $word !== null && $word['width'] > $available + 0.01;
+
+            if ($long) {
+                $this->breakMode(false, true);
+                $this->font((string) $word['style'], $size);
+                $height = $this->measure((string) $word['text'], $available);
+            } else {
+                $height = $lineHeight;
+            }
+
+            $this->ensureSpace($height);
+
+            if ($index > 0) {
+                $this->cursorY += self::LINE_SPACING;
+            }
+
+            // captured after the space check, so a page break has already
+            // moved the cursor and the segment lands on the right page
+            $ruleTop = $this->cursorY - ($index > 0 ? self::LINE_SPACING : 0.0);
+
+            if ($item && $index === 0) {
+                // the marker sits in the indent, right-aligned against the
+                // text so single and double digit numbers line up
+                $this->beginTag('Lbl');
+                $this->font('', $size);
+                $this->text(
+                    $block['marker'],
+                    self::MARGIN_LEFT + $block['indent'] - self::RICH_INDENT,
+                    $this->cursorY,
+                    self::RICH_INDENT - self::SPACE,
+                    halign: 'R',
+                );
+                $this->endTag();
+                $this->beginTag('LBody');
+            } elseif ($index === 0 && ! $item) {
+                $this->beginTag('P');
+            }
+
+            if ($long) {
+                $this->text(
+                    (string) $word['text'],
+                    self::MARGIN_LEFT + $block['indent'],
+                    $this->cursorY,
+                    $available,
+                    underline: $word['underline'] === true,
+                    strike: $word['strike'] === true,
+                );
+                $this->breakMode(false, false);
+            } else {
+                $this->drawRichLine(
+                    $line['words'],
+                    self::MARGIN_LEFT + $block['indent'],
+                    $available,
+                    $size,
+                    $line['justify'],
+                );
+            }
+
+            $this->cursorY += $height;
+
+            if ($block['quote'] !== 0) {
+                $this->quoteRule(
+                    self::MARGIN_LEFT + $block['quoteIndent'],
+                    $ruleTop,
+                    $this->cursorY,
+                );
+            }
+        }
+
+        if ($item) {
+            $this->endTag();
+            $this->endTag();
+        } elseif ($lines !== []) {
+            $this->endTag();
+        }
+    }
+
+    /**
+     * Greedy line breaking over the words of one block.
+     *
+     * A line is only stretched when it was broken because it ran out of room.
+     * One that ends at a <br>, like the last line of the block, keeps its
+     * natural width - stretching it would leave a hole rather than a straight
+     * edge.
+     *
+     * @param  list<array<string, mixed>>  $words
+     * @return list<array{words: list<array<string, mixed>>, justify: bool}>
+     */
+    private function breakRichLines(array $words, float $available, float $size): array
+    {
+        $lines = [];
+        $line = [];
+        $width = 0.0;
+
+        foreach ($words as $word) {
+            $wordWidth = $this->richWordWidth($word, $size);
+            $space = $line === [] || $word['space'] !== true
+                ? 0.0
+                : $this->richSpaceWidth((string) end($line)['style'], $size);
+
+            $forced = $word['break'] === true && $line !== [];
+            $overflows = $line !== [] && ($width + $space + $wordWidth) > $available + 0.01;
+
+            if ($forced || $overflows) {
+                $lines[] = ['words' => $line, 'justify' => ! $forced];
+                $line = [];
+                $width = 0.0;
+                $space = 0.0;
+            }
+
+            $line[] = $word + ['width' => $wordWidth];
+            $width += $space + $wordWidth;
+        }
+
+        if ($line !== []) {
+            $lines[] = ['words' => $line, 'justify' => false];
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Draws one line, run by run. A run is a maximal group of words sharing a
+     * style: the library justifies each of them to the target width handed to
+     * it, and the gaps between runs are advanced here.
+     *
+     * @param  list<array<string, mixed>>  $line
+     */
+    private function drawRichLine(array $line, float $x, float $available, float $size, bool $justify): void
+    {
+        $runs = [];
+        foreach ($line as $word) {
+            $key = $word['style'].($word['underline'] ? 'u' : '').($word['strike'] ? 's' : '')
+                .'|'.$word['href'];
+            if ($runs !== [] && $runs[count($runs) - 1]['key'] === $key) {
+                $runs[count($runs) - 1]['words'][] = $word;
+
+                continue;
+            }
+
+            $runs[] = ['key' => $key, 'word' => $word, 'words' => [$word]];
+        }
+
+        // natural width of the line: every run as its own string, plus a space
+        // at each boundary that had one, in the font of the run before it
+        $natural = 0.0;
+        $gaps = 0;
+        foreach ($runs as $index => $run) {
+            $this->font((string) $run['word']['style'], $size);
+            $natural += $this->measureWidth($this->richRunText($run['words']));
+            $gaps += $this->richRunGaps($run['words']);
+
+            $next = $runs[$index + 1] ?? null;
+            if ($next !== null && $next['word']['space'] === true) {
+                $natural += $this->richSpaceWidth((string) $run['word']['style'], $size);
+                $gaps++;
+            }
+        }
+
+        $share = $justify && $gaps > 0 ? max(0.0, $available - $natural) / $gaps : 0.0;
+
+        // more slack than the gaps can absorb: leave the line ragged
+        if ($share > self::RICH_MAX_STRETCH * $this->richSpaceWidth((string) $runs[0]['word']['style'], $size)) {
+            $share = 0.0;
+        }
+
+        foreach ($runs as $index => $run) {
+            $style = (string) $run['word']['style'];
+            $this->font($style, $size);
+            $text = $this->richRunText($run['words']);
+            $inner = $this->richRunGaps($run['words']);
+            $target = $this->measureWidth($text) + ($inner * $share);
+
+            $href = (string) $run['word']['href'];
+
+            $this->text(
+                $text,
+                $x,
+                $this->cursorY,
+                $target,
+                // stretching needs a gap to put the slack in
+                halign: $inner > 0 && $share > 0.0 ? 'J' : 'L',
+                // Set apart by colour, like the contact line, rather than by
+                // an underline: the address itself is not written out, so the
+                // text has to carry the hint that it leads somewhere.
+                color: $href !== '' ? self::LINK_COLOR : self::COLOR_BLACK,
+                underline: $run['word']['underline'] === true,
+                strike: $run['word']['strike'] === true,
+            );
+
+            if ($href !== '') {
+                $this->linkArea($href, $x, $this->cursorY, $target, $size);
+            }
+
+            $x += $target;
+            $next = $runs[$index + 1] ?? null;
+            if ($next !== null && $next['word']['space'] === true) {
+                $x += $this->richSpaceWidth($style, $size) + $share;
+            }
+        }
+    }
+
+    /**
+     * The address a contact detail leads to, or an empty string when it is
+     * neither an e-mail nor a phone number. A dialler wants the number
+     * without its spacing, so tel: gets the digits and a leading plus only.
+     */
+    public static function contactLink(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (str_contains($value, '@')) {
+            return 'mailto:'.$value;
+        }
+
+        $dialled = preg_replace('/(?!^\+)[^0-9]/', '', $value) ?? '';
+
+        return $dialled === '' ? '' : 'tel:'.$dialled;
+    }
+
+    /**
+     * Makes the box a run occupies clickable.
+     *
+     * The annotation has to be referenced from its page, and the library hangs
+     * it into the structure tree itself - it walks the page's annotations when
+     * writing and gives each one that no structure element claims a Link
+     * element of its own.
+     */
+    private function linkArea(string $href, float $x, float $y, float $width, float $size): void
+    {
+        $oid = $this->pdf->setLink($x, $y, $width, $this->lineHeight($size), $href);
+        if ($oid > 0) {
+            $this->pdf->page->addAnnotRef($oid);
+        }
+    }
+
+    /**
+     * The text of a run, with a space only where one stood in the markup.
+     *
+     * @param  list<array<string, mixed>>  $words
+     */
+    private function richRunText(array $words): string
+    {
+        $text = '';
+        foreach ($words as $index => $word) {
+            if ($index > 0 && $word['space'] === true) {
+                $text .= ' ';
+            }
+
+            $text .= (string) $word['text'];
+        }
+
+        return $text;
+    }
+
+    /**
+     * How many spaces inside a run can take a share of the slack.
+     *
+     * @param  list<array<string, mixed>>  $words
+     */
+    private function richRunGaps(array $words): int
+    {
+        $gaps = 0;
+        foreach ($words as $index => $word) {
+            if ($index > 0 && $word['space'] === true) {
+                $gaps++;
+            }
+        }
+
+        return $gaps;
+    }
+
+    /**
+     * @param  array<string, mixed>  $word
+     */
+    private function richWordWidth(array $word, float $size): float
+    {
+        $this->font((string) $word['style'], $size);
+
+        return $this->measureWidth((string) $word['text']);
+    }
+
+    /**
+     * Width of a space in one style, in mm. Measured as the difference between
+     * two glyphs with and without a space between them - measuring the space
+     * on its own returns nothing, the text cell trims it.
+     */
+    private function richSpaceWidth(string $style, float $size): float
+    {
+        $key = $style.'/'.$size;
+
+        if (! isset($this->richSpaceWidths[$key])) {
+            $this->font($style, $size);
+            $this->richSpaceWidths[$key] = $this->measureWidth('a a') - $this->measureWidth('aa');
+        }
+
+        return $this->richSpaceWidths[$key];
     }
 }

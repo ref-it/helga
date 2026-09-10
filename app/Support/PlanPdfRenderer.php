@@ -7,6 +7,7 @@ namespace App\Support;
 use App\Http\Controllers\PlanController;
 use App\Models\Plan;
 use App\Models\Shift;
+use App\Models\Subscription;
 use Com\Tecnick\Pdf\Tcpdf;
 use DOMDocument;
 use DOMElement;
@@ -707,7 +708,10 @@ final class PlanPdfRenderer
         foreach ($shifts as $index => $shift) {
             $previous = $index > 0 ? $shifts[$index - 1] : null;
             if (($previous === null || $previous->type !== $shift->type) && $shift->type !== '') {
-                $this->drawGroupHeading($this->categoryLabel((string) $shift->type, $this->categoryNames));
+                $this->drawGroupHeading(
+                    $this->categoryLabel((string) $shift->type, $this->categoryNames),
+                    $this->shiftBlockMinimum($shift),
+                );
             }
 
             // A shift is only one level deeper when a category heading (H2)
@@ -721,7 +725,7 @@ final class PlanPdfRenderer
         }
     }
 
-    private function drawGroupHeading(string $name): void
+    private function drawGroupHeading(string $name, float $keepWithNext = 0.0): void
     {
         $this->font('B', self::HEADING_SIZE_CATEGORY, self::FONT_SERIF);
         $labelWidth = $this->measureWidth($name);
@@ -736,11 +740,11 @@ final class PlanPdfRenderer
         // like a stray gap.
         $spacing = $this->cursorY > self::MARGIN_TOP ? 8 * self::SPACE : 0.0;
 
-        // the heading plus the gap down to its first shift, so a category
-        // never ends up alone at the foot of a page. Measured rather than
-        // estimated - the 16mm this used to reserve predates both the font
-        // and the heading size it was guessed for.
-        $this->ensureSpace($spacing + $height + self::SHIFT_GAP);
+        // The heading, the gap down to its first shift and the opening of that
+        // shift, so a category never ends up alone at the foot of a page - nor
+        // with nothing under it but the heading of a shift whose own content
+        // went to the next page.
+        $this->ensureSpace($spacing + $height + self::SHIFT_GAP + $keepWithNext);
 
         // the check above may have started that fresh page itself
         if ($this->cursorY <= self::MARGIN_TOP) {
@@ -774,6 +778,44 @@ final class PlanPdfRenderer
         $this->cursorY += $height;
     }
 
+    /**
+     * How much room the opening of a shift needs so that its heading is never
+     * the last thing on a page: the heading itself, the rule under it, and
+     * everything that has to follow before the table can break - a badge, the
+     * first line of a description, the table head and its first slot row.
+     *
+     * Every part of it is measured rather than assumed. ROW_MIN_HEIGHT looks
+     * like a fair estimate for the row but is only a floor: a row clears it by
+     * some 7mm, because the name cell always stacks three lines. And the badge
+     * and the description are drawn after the check, so leaving them out let
+     * them push the table off the page and strand the heading anyway.
+     */
+    private function shiftBlockMinimum(Shift $shift): float
+    {
+        $columns = $this->columnLayout($shift);
+        $first = $shift->subscriptions[0] ?? null;
+        [$firstRowHeight] = $this->helperRowHeight(
+            $this->helperRowStack($first),
+            (string) ($first->comment ?? ''),
+            $columns,
+        );
+
+        $minimum = $this->measureShiftHeading($shift)['height']
+            + 1.0 + self::SPACE
+            + $this->tableHeadHeight()
+            + $firstRowHeight;
+
+        if ($shift->requires_health_certificate) {
+            $minimum += $this->badgeBlockHeight();
+        }
+
+        if ($shift->description) {
+            $minimum += $this->lineHeight(10) + self::PARAGRAPH_GAP;
+        }
+
+        return $minimum;
+    }
+
     private function drawShift(Shift $shift): void
     {
         // The gap before a heading belongs to the heading, not to whatever
@@ -784,17 +826,7 @@ final class PlanPdfRenderer
         // a stray gap.
         $leading = $this->cursorY > self::MARGIN_TOP ? self::SHIFT_GAP : 0.0;
 
-        // Keep the heading with at least the table head and one slot row, so
-        // a shift never starts at the very bottom of a page. Measured rather
-        // than estimated: the 18mm this used to reserve was guessed against
-        // the old font and heading size and matches neither any more.
-        $this->ensureSpace(
-            $leading
-            + $this->measureShiftHeading($shift)['height']
-            + 1.0 + self::SPACE
-            + $this->tableHeadHeight()
-            + self::ROW_MIN_HEIGHT
-        );
+        $this->ensureSpace($leading + $this->shiftBlockMinimum($shift));
 
         // the check above may have started that fresh page itself
         if ($this->cursorY <= self::MARGIN_TOP) {
@@ -901,6 +933,22 @@ final class PlanPdfRenderer
     /**
      * Outlined label marking a shift that requires a health certificate.
      */
+    /**
+     * Vertical space the health certificate badge occupies, its air above and
+     * below included - what drawShift() has to hold back for it before it can
+     * tell whether the heading still fits above its content.
+     */
+    private function badgeBlockHeight(): float
+    {
+        $this->font('B', self::BADGE_FONT_SIZE);
+        $metrics = $this->pdf->font->getCurrentFont();
+        $toMm = $metrics['usize'] / $metrics['size'];
+
+        $box = ($metrics['capheight'] + abs($metrics['descent'])) * $toMm + (2 * self::BADGE_PADDING_Y);
+
+        return self::BADGE_GAP + $box + self::BADGE_GAP + self::SPACE;
+    }
+
     private function drawHealthCertificateBadge(): void
     {
         $this->cursorY += self::BADGE_GAP;
@@ -950,6 +998,78 @@ final class PlanPdfRenderer
         $this->cursorY += $height + self::BADGE_GAP + self::SPACE;
     }
 
+    /**
+     * The three stacked lines of a helper's cell: name, e-mail, phone. They
+     * are always all three, whether or not the slot is taken and whether or
+     * not a value exists - the printout is filled in by hand, so the lines
+     * have to be there to write on.
+     *
+     * @return list<array{0: string, 1: float, 2: bool, 3: float, 4: string}>
+     */
+    private function helperRowStack(?Subscription $subscription): array
+    {
+        return [
+            [$subscription->name ?? '', self::TABLE_FONT_SIZE, true, 0.0, ''],
+            [
+                $subscription->email ?? '',
+                self::CONTACT_FONT_SIZE,
+                false,
+                self::CONTACT_LINE_GAP,
+                self::contactLink((string) ($subscription->email ?? '')),
+            ],
+            [
+                $subscription->phone ?? '',
+                self::CONTACT_FONT_SIZE,
+                false,
+                self::CONTACT_LINE_GAP,
+                self::contactLink((string) ($subscription->phone ?? '')),
+            ],
+        ];
+    }
+
+    /**
+     * Height of one row of the helper table and of each line in its name
+     * cell, without drawing anything.
+     *
+     * A line with no value still takes up a normal line of its size, so a row
+     * is the same height whether or not the slot is taken and there is a line
+     * to write each value on. Measured once and reused for drawing, so the
+     * lines and the borders cannot drift apart - and reused by drawShift(),
+     * which has to know how tall the first row will be before it can tell
+     * whether the heading still fits above it.
+     *
+     * @param  list<array{0: string, 1: float, 2: bool, 3: float, 4: string}>  $stack
+     * @param  array<string, array{x: float, width: float, label: string}>  $columns
+     * @return array{0: float, 1: list<float>}
+     */
+    private function helperRowHeight(array $stack, string $comment, array $columns): array
+    {
+        $nameWidth = $columns['name']['width'] - 2 * self::CELL_PADDING;
+
+        $lineHeights = [];
+        foreach ($stack as [$text, $fontSize, $hyphenate, $gap]) {
+            $this->font('', $fontSize);
+            $this->breakMode($hyphenate);
+            $lineHeights[] = $gap + ($text === ''
+                ? $this->lineHeight($fontSize)
+                : $this->measure($text, $nameWidth));
+        }
+        $this->breakMode(true);
+
+        // The index and clothing size are always a single short token and can
+        // never drive the row height, so they are not measured.
+        $this->font('', self::TABLE_FONT_SIZE);
+        $commentHeight = $this->measure($comment, $columns['comment']['width'] - 2 * self::CELL_PADDING);
+
+        return [
+            max(
+                self::ROW_MIN_HEIGHT,
+                max(array_sum($lineHeights), $commentHeight) + 2 * self::CELL_PADDING,
+            ),
+            $lineHeights,
+        ];
+    }
+
     private function drawHelperTable(Shift $shift): void
     {
         $columns = $this->columnLayout($shift);
@@ -971,53 +1091,9 @@ final class PlanPdfRenderer
             $size = $subscription->clothing_size ?? '';
             $comment = $subscription->comment ?? '';
 
-            // Name, e-mail and phone are always three stacked lines, whether
-            // or not the slot is taken and whether or not a value exists: the
-            // printout is filled in by hand, so the lines have to be there to
-            // write on.
-            $stack = [
-                [$subscription->name ?? '', self::TABLE_FONT_SIZE, true, 0.0, ''],
-                [
-                    $subscription->email ?? '',
-                    self::CONTACT_FONT_SIZE,
-                    false,
-                    self::CONTACT_LINE_GAP,
-                    self::contactLink((string) ($subscription->email ?? '')),
-                ],
-                [
-                    $subscription->phone ?? '',
-                    self::CONTACT_FONT_SIZE,
-                    false,
-                    self::CONTACT_LINE_GAP,
-                    self::contactLink((string) ($subscription->phone ?? '')),
-                ],
-            ];
-
+            $stack = $this->helperRowStack($subscription);
             $nameWidth = $columns['name']['width'] - 2 * self::CELL_PADDING;
-
-            // A line with no value still takes up a normal line of its size,
-            // so a row is the same height whether or not the slot is taken and
-            // there is a line to write each value on. Measured once and reused
-            // for drawing, so the lines and the borders cannot drift apart.
-            $lineHeights = [];
-            foreach ($stack as [$text, $fontSize, $hyphenate, $gap, $href]) {
-                $this->font('', $fontSize);
-                $this->breakMode($hyphenate);
-                $lineHeights[] = $gap + ($text === ''
-                    ? $this->lineHeight($fontSize)
-                    : $this->measure($text, $nameWidth));
-            }
-            $this->breakMode(true);
-
-            // The index and clothing size are always a single short token and
-            // can never drive the row height, so they are not measured.
-            $this->font('', self::TABLE_FONT_SIZE);
-            $commentHeight = $this->measure($comment, $columns['comment']['width'] - 2 * self::CELL_PADDING);
-
-            $rowHeight = max(
-                self::ROW_MIN_HEIGHT,
-                max(array_sum($lineHeights), $commentHeight) + 2 * self::CELL_PADDING,
-            );
+            [$rowHeight, $lineHeights] = $this->helperRowHeight($stack, $comment, $columns);
 
             if (! $this->hasSpace(($headPending ? $this->tableHeadHeight() : 0.0) + $rowHeight)) {
                 $this->newPage();

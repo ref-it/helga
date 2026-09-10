@@ -185,15 +185,23 @@ final class PlanPdfRenderer
     {
         $this->categoryNames = $categoryNames;
 
-        // 'pdfua1' turns on tagged output: every call below that writes text
+        // 'pdfua2' turns on tagged output: every call below that writes text
         // attaches it to the open structure element, so the document carries a
         // real reading order and table semantics instead of loose glyphs.
+        // PDF/UA-2 (ISO 14289-2) also raises the file to PDF 2.0 and adds the
+        // PDF 2.0 structure namespace to the tag tree. The two parts are
+        // mutually exclusive declarations, not a superset: a UA-2 file fails
+        // veraPDF's ua1 profile on the file header (%PDF-2.0 instead of
+        // %PDF-1.n) and on pdfuaid:part, even though all 104 substantive UA-1
+        // rules still pass. EN 301 549 and BITV 2.0 name ISO 14289-1, so if a
+        // procurement requirement ever asks for UA-1 by name, this is the one
+        // line to change back.
         // Subsetting embeds only the glyphs actually used, which keeps the
         // output around 70KB instead of carrying the whole face.
         // allowedPaths replaces the library's own defaults rather than adding
         // to them, so the font directory has to be listed alongside the
         // hyphenation one or the faces stop being found
-        $this->pdf = new Tcpdf('mm', true, true, true, 'pdfua1', null, [
+        $this->pdf = new Tcpdf('mm', true, true, true, 'pdfua2', null, [
             'allowedPaths' => [resource_path('fonts'), resource_path('hyphenation')],
         ]);
         $this->lineHeightCache = [];
@@ -213,10 +221,15 @@ final class PlanPdfRenderer
         $this->contentWidth = $this->pageWidth - self::MARGIN_LEFT - self::MARGIN_RIGHT;
         $this->cursorY = self::MARGIN_TOP;
 
-        $this->beginTag('Document');
+        // No Document tag of our own: the library writes one unconditionally
+        // under StructTreeRoot and parents every element that is nobody's
+        // child to it, so opening a second one only nested the whole tree a
+        // level deeper. Both are legal - PDF 2.0 permits Document inside
+        // Document - but the library puts the PDF 2.0 structure namespace on
+        // the outer one, which would leave the element that actually carries
+        // the content in the default namespace.
         $this->drawPlanHeader($plan);
         $this->drawShifts($plan);
-        $this->endTag();
 
         // once every page exists, the total is known and the footer can be
         // stamped onto each one - no second render pass needed
@@ -449,14 +462,18 @@ final class PlanPdfRenderer
     {
         $shifts = $plan->shifts;
 
-        $hasCategories = $shifts->contains(fn (Shift $shift): bool => $shift->type !== '' && $shift->type !== null);
-        $this->shiftHeadingRole = $hasCategories ? 'H3' : 'H2';
-
         foreach ($shifts as $index => $shift) {
             $previous = $index > 0 ? $shifts[$index - 1] : null;
             if (($previous === null || $previous->type !== $shift->type) && $shift->type !== '') {
                 $this->drawGroupHeading($this->categoryLabel((string) $shift->type, $this->categoryNames));
             }
+
+            // A shift is only one level deeper when a category heading (H2)
+            // actually precedes it. Deciding this once per plan made every
+            // shift an H3 as soon as any shift had a category - and since
+            // uncategorised shifts sort first, such a plan opened with H1
+            // followed by H3 and skipped a level (PDF/UA-1 clause 7.4.2).
+            $this->shiftHeadingRole = $shift->type !== '' ? 'H3' : 'H2';
 
             $this->drawShift($shift);
         }
@@ -763,7 +780,14 @@ final class PlanPdfRenderer
             // column, which is what lets it announce "Name: Jane Doe" when the
             // reader lands on a body cell. Empty cells stay in the tree
             // (required) so the column count matches every body row.
-            $this->beginTag('TH', null, ['Scope' => 'Column'], true);
+            //
+            // Scope belongs to the Table attribute owner (ISO 32000-1 table
+            // 349), so /O has to be declared alongside it - the library writes
+            // the pairs into /A verbatim and adds no owner of its own, and
+            // without one the attribute is not read as a table attribute at
+            // all: veraPDF then reports the column headers as not
+            // determinable (PDF/UA-1 clause 7.5).
+            $this->beginTag('TH', null, ['O' => 'Table', 'Scope' => 'Column'], true);
 
             if ($column['label'] !== '') {
                 $this->text(
@@ -1012,11 +1036,22 @@ final class PlanPdfRenderer
         $this->font('', $size);
         $this->ensureSpace(8.0);
 
+        // addHTMLCell() creates a structure element for every HTML block
+        // element it renders, but writes bare text as loose marked content -
+        // which would hang directly off the enclosing Document, and a grouping
+        // element may not hold content items (PDF/UA-2, Table 5). Descriptions
+        // saved before the rich-text editor are plain text, so those get a
+        // paragraph of their own. Doing it here rather than wrapping the whole
+        // cell in a P tag keeps content that already brings its own blocks
+        // from ending up as a P inside a P, or a list inside a P.
+        $wrapper = preg_match('#<(?:p|ul|ol|blockquote)[\s/>]#i', $html) === 1 ? 'div' : 'p';
+
         // The wrapper is ours, not user input - the field content itself is
         // already restricted to DescriptionSanitizer::ALLOWED_HTML. Descriptions
         // are set justified; the table around them is the document's grid, and
         // a ragged right edge beside it reads as unfinished.
-        $wrapped = '<div style="line-height: '.self::HTML_LINE_HEIGHT.'; text-align: justify">'.$html.'</div>';
+        $wrapped = '<'.$wrapper.' style="line-height: '.self::HTML_LINE_HEIGHT.'; text-align: justify">'
+            .$html.'</'.$wrapper.'>';
 
         $this->pdf->addHTMLCell($wrapped, posx: self::MARGIN_LEFT, posy: $this->cursorY, width: $this->contentWidth);
 

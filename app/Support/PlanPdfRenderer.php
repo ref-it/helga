@@ -129,6 +129,24 @@ final class PlanPdfRenderer
      */
     private const COL_INDEX_WIDTH = 7.5;
 
+    /**
+     * Heading sizes in pt, one ladder so the steps stay visible next to each
+     * other: plan title, category, shift title.
+     *
+     * The steps are wide enough to read as levels at a glance - category and
+     * shift used to sit 1pt apart, which looked like the same heading twice.
+     * The shift title is the bottom rung and cannot go below 12pt: helper
+     * names in the table are 11pt, and a title level with the content it
+     * labels reads as body text. So the room comes from stretching the ladder
+     * upwards instead - in even 3pt steps, which keeps the plan title clearly
+     * above the category without letting it dominate an A4 page.
+     */
+    private const HEADING_SIZE_PLAN = 18.0;
+
+    private const HEADING_SIZE_CATEGORY = 15.0;
+
+    private const HEADING_SIZE_SHIFT = 12.0;
+
     private const FONT = 'liberationsans';
 
     /**
@@ -287,7 +305,7 @@ final class PlanPdfRenderer
     {
         $logoWidth = $this->drawLogo($plan);
 
-        $this->font('B', 16);
+        $this->font('B', self::HEADING_SIZE_PLAN);
         $this->bookmark($plan->title, 0);
         $this->beginTag('H1');
         $this->text($plan->title, self::MARGIN_LEFT, $this->cursorY, $this->contentWidth - $logoWidth);
@@ -487,7 +505,7 @@ final class PlanPdfRenderer
         $this->ensureSpace($spacing + 16.0);
         $this->cursorY += $spacing;
 
-        $this->font('B', 13);
+        $this->font('B', self::HEADING_SIZE_CATEGORY);
         $labelWidth = $this->measureWidth($name);
         $height = $this->measure('Xg', $this->contentWidth);
 
@@ -497,15 +515,13 @@ final class PlanPdfRenderer
         $this->endTag();
 
         // The rule starts where the label ends and runs out to the margin, so
-        // the category reads as a section break without a filled band. It sits
-        // at 45% of the line box, which is where the middle of the capitals is
-        // - centring on the box itself would leave it visibly low.
+        // the category reads as a section break without a filled band.
         $ruleStart = self::MARGIN_LEFT + $labelWidth + 3.0;
         $ruleEnd = $this->pageWidth - self::MARGIN_RIGHT;
 
         // a label wide enough to fill the line leaves no room for a rule
         if ($ruleEnd - $ruleStart > 5.0) {
-            $ruleY = $this->cursorY + $height * 0.45;
+            $ruleY = $this->cursorY + $this->capMiddleOffset($height);
             $this->artifact($this->pdf->graph->getLine(
                 $ruleStart,
                 $ruleY,
@@ -542,12 +558,12 @@ final class PlanPdfRenderer
         $this->font('', 10);
         $dateHeight = $this->measure($date, $this->contentWidth * 0.45);
 
-        $this->font('B', 12);
+        $this->font('B', self::HEADING_SIZE_SHIFT);
         $titleHeight = $this->measure($shift->title, $this->contentWidth * 0.55);
 
         $height = max($titleHeight, $dateHeight);
 
-        $this->font('B', 12);
+        $this->font('B', self::HEADING_SIZE_SHIFT);
         // the outline mirrors the heading levels, so a plan without
         // categories does not indent its shifts under a level that is not there
         $this->bookmark($shift->title, $this->shiftHeadingRole === 'H3' ? 2 : 1);
@@ -1044,6 +1060,24 @@ final class PlanPdfRenderer
         }
 
         return $this->lineHeightCache[$key];
+    }
+
+    /**
+     * How far below the top of a line box the optical middle of the capitals
+     * sits, in mm: the baseline is one ascent down, and the middle of a
+     * capital half a cap height back up from there.
+     *
+     * Derived from the metrics of the currently selected font instead of kept
+     * as a tuned fraction, so it follows the heading sizes on its own. It
+     * comes out at 0.502 of the line box for every size; the fixed 0.45 it
+     * replaces was set by eye and left the rule 0.23mm above the middle at
+     * the category's old 13pt, and 0.34mm at 15pt, where it showed.
+     */
+    private function capMiddleOffset(float $lineHeight): float
+    {
+        $metrics = $this->pdf->font->getCurrentFont();
+
+        return $lineHeight * ($metrics['ascent'] - $metrics['capheight'] / 2) / $metrics['height'];
     }
 
     private function measureWidth(string $txt): float

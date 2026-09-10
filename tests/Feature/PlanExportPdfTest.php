@@ -12,6 +12,11 @@ test('the owner can export the plan as a pdf', function (): void {
 
     $response->assertOk();
     expect($response->headers->get('content-type'))->toBe('application/pdf');
+
+    // shown in the browser's viewer rather than dropped into the download
+    // folder, with the filename still there for the viewer's save button
+    expect($response->headers->get('content-disposition'))->toStartWith('inline;');
+    expect($response->headers->get('content-disposition'))->toContain('.pdf');
 });
 
 test('an unrelated user cannot export the plan as a pdf', function (): void {

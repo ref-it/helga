@@ -212,9 +212,14 @@ class PlanController extends Controller
         $raw = $renderer->render($plan, $plan->shiftCategories->pluck('name', 'id'));
         $filename = Str::slug(__('plan.shiftPlan').'-'.$plan->title).'.pdf';
 
+        // Shown in the browser's own viewer rather than dropped into the
+        // download folder: the sheet exists to be printed, and every viewer
+        // has a save button, so serving it inline takes nothing away. The
+        // filename still travels - it is what the viewer offers on save, and
+        // what the tab is named after.
         return response($raw, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
         ]);
     }
 

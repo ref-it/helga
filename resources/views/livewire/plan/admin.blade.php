@@ -40,9 +40,13 @@
                             <flux:menu.separator />
 
                             @if(count($plan->shifts) > 0)
+                                {{-- opens in its own tab, where the browser's
+                                     viewer can print or save it --}}
                                 <flux:menu.item
                                     icon="printer"
                                     href="{{ route('plan.export.pdf', ['plan' => $plan]) }}"
+                                    target="_blank"
+                                    rel="noopener"
                                 >
                                     {{__('plan.exportPdf')}}
                                 </flux:menu.item>

@@ -528,7 +528,7 @@ final class PlanPdfRenderer
             // 4.5:1 WCAG AA asks for body text - a lighter step would look
             // right and come closer to failing it
             $label = __('plan.responsible').': ';
-            $separator = ' | ';
+            $separator = ' · ';
 
             // Label and values are one paragraph for a screen reader, but
             // several draw calls: a text cell has a single weight and a single

@@ -53,6 +53,51 @@ function structTagsByObject(string $pdf): array
     return $elements;
 }
 
+/**
+ * The table rows of the export, in document order, as the page object they
+ * sit on plus whether they are a head row - a row whose cells are all TH.
+ *
+ * @return list<array{page: int, head: bool}>
+ */
+function tableRows(string $pdf): array
+{
+    preg_match_all(
+        '#(\d+) 0 obj\s*<< /Type /StructElem /S /(\w+).{0,200}?/Pg (\d+) 0 R.{0,600}?/K \[(.*?)\] >>#s',
+        $pdf,
+        $matches,
+        PREG_SET_ORDER,
+    );
+
+    $elements = [];
+    foreach ($matches as $match) {
+        $elements[(int) $match[1]] = [
+            'tag' => $match[2],
+            'page' => (int) $match[3],
+            'kids' => array_map('intval', preg_split('/\D+/', $match[4], -1, PREG_SPLIT_NO_EMPTY) ?: []),
+        ];
+    }
+
+    ksort($elements);
+
+    $rows = [];
+    foreach ($elements as $element) {
+        if ($element['tag'] !== 'TR') {
+            continue;
+        }
+
+        $cellTags = [];
+        foreach ($element['kids'] as $kid) {
+            if (isset($elements[$kid])) {
+                $cellTags[] = $elements[$kid]['tag'];
+            }
+        }
+
+        $rows[] = ['page' => $element['page'], 'head' => $cellTags !== [] && array_unique($cellTags) === ['TH']];
+    }
+
+    return $rows;
+}
+
 test('the export declares PDF/UA-2', function (): void {
     $owner = User::factory()->create();
     $plan = createOwnedPlan($owner);
@@ -142,4 +187,38 @@ test('a description that brings its own blocks is not wrapped again', function (
     foreach ($tags as ['tag' => $tag, 'parent' => $parent]) {
         expect($tags[$parent]['tag'] ?? null)->not->toBe('P', "a {$tag} has a P for a parent");
     }
+});
+
+test('no page break leaves a table head without a row under it', function (): void {
+    $owner = User::factory()->create();
+    $plan = createOwnedPlan($owner);
+    // enough shifts of varying height that tables land at every offset from
+    // the bottom margin - one of them used to break right after its head
+    for ($i = 0; $i < 24; $i++) {
+        $shift = $plan->shifts()->create([
+            'title' => "Shift {$i}",
+            'description' => str_repeat('Some description text. ', ($i % 4) + 1),
+            'group' => 0,
+            'start' => now()->addHours($i * 3),
+            'end' => now()->addHours($i * 3 + 2),
+            'team_size' => ($i % 3) + 1,
+        ]);
+        if ($i % 2 === 0) {
+            $shift->subscriptions()->create(['name' => 'Jane Doe', 'email' => 'jane@example.com']);
+        }
+    }
+
+    $rows = tableRows(exportedPdf($plan, $owner));
+
+    expect($rows)->not->toBeEmpty();
+
+    // the last row on any page must not be a head row - a column heading with
+    // nothing under it reads as an empty table, and the head is repeated at
+    // the top of the next page anyway
+    $lastRowPerPage = [];
+    foreach ($rows as $row) {
+        $lastRowPerPage[$row['page']] = $row['head'];
+    }
+
+    expect(array_keys(array_filter($lastRowPerPage)))->toBe([]);
 });

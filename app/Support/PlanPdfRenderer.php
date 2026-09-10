@@ -615,7 +615,13 @@ final class PlanPdfRenderer
         $slots = max($shift->team_size, $shift->subscriptions->count());
 
         $this->beginTag('Table');
-        $this->drawTableHead($columns);
+
+        // The head is only drawn once the row that follows it is known to fit
+        // below it on the same page. Drawing it up front stranded it at the
+        // foot of a page whenever the first row had to break to the next one,
+        // where the head was then repeated - a column heading with nothing
+        // under it, which reads as an empty table.
+        $headPending = true;
 
         for ($slot = 0; $slot < $slots; $slot++) {
             $subscription = $shift->subscriptions[$slot] ?? null;
@@ -660,9 +666,14 @@ final class PlanPdfRenderer
                 max(array_sum($lineHeights), $commentHeight) + 2 * self::CELL_PADDING,
             );
 
-            if (! $this->hasSpace($rowHeight)) {
+            if (! $this->hasSpace(($headPending ? $this->tableHeadHeight() : 0.0) + $rowHeight)) {
                 $this->newPage();
+                $headPending = true;
+            }
+
+            if ($headPending) {
                 $this->drawTableHead($columns);
+                $headPending = false;
             }
 
             $top = $this->cursorY;
@@ -729,6 +740,14 @@ final class PlanPdfRenderer
             $this->columnRules($columns, $top, $this->cursorY);
         }
 
+        // A shift with no slots and no helpers has no row to wait for, but the
+        // table still needs its head - both so the columns are named and so
+        // the element is not an empty Table in the tag tree.
+        if ($headPending) {
+            $this->ensureSpace($this->tableHeadHeight());
+            $this->drawTableHead($columns);
+        }
+
         $this->endTag();
     }
 
@@ -768,11 +787,23 @@ final class PlanPdfRenderer
     /**
      * @param  array<string, array{x: float, width: float, label: string}>  $columns
      */
-    private function drawTableHead(array $columns): void
+    /**
+     * Height the table head takes, without drawing it - needed to decide
+     * whether head and first row still fit on the current page together.
+     */
+    private function tableHeadHeight(): float
     {
         $this->font('B', 10);
+
+        return $this->measure('Xg', $this->contentWidth) + self::HEAD_PADDING_BOTTOM;
+    }
+
+    private function drawTableHead(array $columns): void
+    {
         $top = $this->cursorY;
-        $height = $this->measure('Xg', $this->contentWidth) + self::HEAD_PADDING_BOTTOM;
+        $height = $this->tableHeadHeight();
+
+        $this->font('B', 10);
 
         $this->beginTag('TR');
         foreach ($columns as $column) {

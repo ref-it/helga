@@ -1,1 +1,0 @@
-window.addEventListener(`pageshow`,e=>{e.persisted&&window.location.reload()});

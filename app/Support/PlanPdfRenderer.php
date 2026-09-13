@@ -123,6 +123,42 @@ final class PlanPdfRenderer
     private const CONTACT_LINE_GAP = 1.0;
 
     /**
+     * Air on each side of the dot between two contact values, in mm. Set as a
+     * distance rather than left to the spaces around the character, which at
+     * one space each (0.99mm) sat too tight for a separator that has to
+     * separate two runs of digits and punctuation.
+     *
+     * Three quarters of a unit: like LINE_SPACING this is spacing inside a
+     * line, measured against the type, so it is deliberately off the block
+     * grid.
+     */
+    private const CONTACT_SEPARATOR_GAP = 0.75 * self::SPACE;
+
+    /**
+     * The contact block: padding inside its box, the size of the icon that
+     * labels each value, and the air between that icon and the value.
+     *
+     * The icon is set to the cap height of the line it sits on, so it reads
+     * as one weight with the text rather than as a picture beside it.
+     */
+    private const CONTACT_BOX_PADDING = 2 * self::SPACE;
+
+    private const CONTACT_ICON_SIZE = 3.4;
+
+    private const CONTACT_ICON_GAP = 0.75 * self::SPACE;
+
+    /**
+     * Air between the label of the contact box and the values under it, and
+     * the size the label is set at. It takes the serif of the headings, so it
+     * reads as one of them rather than as bold body text - but a step below
+     * the shift titles, because it names a block of the header and not a
+     * section of the plan.
+     */
+    private const CONTACT_LABEL_GAP = self::SPACE;
+
+    private const HEADING_SIZE_CONTACT = 10.0;
+
+    /**
      * Padding below the column header labels, in mm. There is deliberately
      * none above: the table has no top edge, so any padding there merges with
      * the block gap above it and reads as a hole rather than as padding. The
@@ -503,6 +539,53 @@ final class PlanPdfRenderer
         return (string) ($names[$type] ?? $type);
     }
 
+    /**
+     * One Lucide icon as SVG the importer understands.
+     *
+     * The icons ship with the interface (resources/views/flux/icon), so the
+     * plan on paper is marked up with the same set as the plan on screen.
+     * Their shapes are lifted out of the Blade file, and the paint is put on
+     * each element: Lucide declares fill and stroke on the root svg, which the
+     * importer ignores - it then fills the outlines, turning an envelope into
+     * a black rectangle.
+     */
+    private function lucideIcon(string $name, string $color): string
+    {
+        $blade = (string) file_get_contents(resource_path("views/flux/icon/{$name}.blade.php"));
+        preg_match_all('#<(path|rect|circle|line|polyline)\b([^>]*)/>#', $blade, $matches, PREG_SET_ORDER);
+
+        $body = '';
+        foreach ($matches as $element) {
+            $body .= '<'.$element[1].$element[2].' fill="none" stroke="'.$color
+                .'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+        }
+
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">'
+            .$body.'</svg>';
+    }
+
+    /**
+     * Draws an icon centred on the capitals of a line whose box starts at $y.
+     *
+     * It goes in as an artifact: the icon repeats what the label beside it
+     * already says, so a screen reader gains nothing from it and would only
+     * have to skip it. addSVG() registers the shape, getSetSVG() places it -
+     * without the second call nothing reaches the page, and without an error
+     * either.
+     */
+    private function drawIcon(string $name, float $x, float $y, float $lineHeight, string $color): void
+    {
+        $middle = $y + $this->capMiddleOffset($lineHeight);
+        $oid = $this->pdf->addSVG(
+            '@'.$this->lucideIcon($name, $color),
+            $x,
+            $middle - self::CONTACT_ICON_SIZE / 2,
+            self::CONTACT_ICON_SIZE,
+            self::CONTACT_ICON_SIZE,
+        );
+        $this->artifact($this->pdf->getSetSVG($oid));
+    }
+
     private function drawPlanHeader(Plan $plan): void
     {
         $logoWidth = $this->drawLogo($plan);
@@ -524,33 +607,70 @@ final class PlanPdfRenderer
 
         $contacts = $this->contactValues($plan);
         if ($contacts !== []) {
-            // zinc-700 carries 10.44:1 against the paper, well above the
-            // 4.5:1 WCAG AA asks for body text - a lighter step would look
-            // right and come closer to failing it
-            $label = __('plan.responsible').': ';
-            $separator = ' · ';
-
-            // Label and values are one paragraph for a screen reader, but
-            // several draw calls: a text cell has a single weight and a single
-            // colour, and each value carries its own link.
-            $this->beginTag('P');
-
-            $this->font('B', 10);
-            $labelWidth = $this->measureWidth($label);
-            $this->text($label, self::MARGIN_LEFT, $this->cursorY, $this->contentWidth, color: self::COLOR_ZINC_700);
-            $labelHeight = $this->lastHeight();
+            // the label is set in the serif and the values in the sans, and
+            // the two faces do not share a line height - each is measured
+            $this->font('B', self::HEADING_SIZE_CONTACT, self::FONT_SERIF);
+            $labelLine = $this->measure('Xg', $this->contentWidth);
 
             $this->font('', 10);
-            $x = self::MARGIN_LEFT + $labelWidth;
-            $separatorWidth = $this->measureWidth($separator);
+            $line = $this->measure('Xg', $this->contentWidth);
+
+            $boxTop = $this->cursorY;
+            $boxHeight = (2 * self::CONTACT_BOX_PADDING)
+                + $labelLine + self::CONTACT_LABEL_GAP + $line;
+
+            // The box is decoration and so an artifact - what it means is in
+            // the label it holds, not in its border.
+            $this->pushStyle(['lineWidth' => 0.18, 'lineColor' => self::COLOR_ZINC_400]);
+            $this->artifact($this->pdf->graph->getRoundedRect(
+                self::MARGIN_LEFT,
+                $boxTop,
+                $this->contentWidth,
+                $boxHeight,
+                self::BADGE_RADIUS,
+                self::BADGE_RADIUS,
+                corner: '1111',
+                mode: 'D',
+            ));
+            $this->popStyle();
+
+            // Label and values are one paragraph: read aloud it comes out as
+            // "Kontakt, <address>, <number>", so the values are not left
+            // standing without saying whose they are. The icons carry no
+            // meaning of their own - they repeat what the label states.
+            $this->beginTag('P');
+
+            $left = self::MARGIN_LEFT + self::CONTACT_BOX_PADDING;
+            $this->cursorY = $boxTop + self::CONTACT_BOX_PADDING;
+
+            $this->font('B', self::HEADING_SIZE_CONTACT, self::FONT_SERIF);
+            $this->text(
+                __('plan.responsible'),
+                $left,
+                $this->cursorY,
+                $this->contentWidth - (2 * self::CONTACT_BOX_PADDING),
+                color: self::COLOR_ZINC_700,
+            );
+
+            $this->cursorY += $labelLine + self::CONTACT_LABEL_GAP;
+            $x = $left;
 
             foreach ($contacts as $index => $value) {
                 if ($index > 0) {
-                    $this->text($separator, $x, $this->cursorY, $separatorWidth, color: self::COLOR_ZINC_700);
-                    $x += $separatorWidth;
+                    $x += 2 * self::CONTACT_SEPARATOR_GAP;
                 }
 
+                $this->drawIcon(
+                    str_contains($value, '@') ? 'mail' : 'phone',
+                    $x,
+                    $this->cursorY,
+                    $line,
+                    self::COLOR_ZINC_700,
+                );
+                $x += self::CONTACT_ICON_SIZE + self::CONTACT_ICON_GAP;
+
                 $href = self::contactLink($value);
+                $this->font('', 10);
                 $width = $this->measureWidth($value);
                 $this->text(
                     $value,
@@ -569,7 +689,7 @@ final class PlanPdfRenderer
 
             $this->endTag();
 
-            $this->cursorY += max($labelHeight, $this->lastHeight());
+            $this->cursorY = $boxTop + $boxHeight;
         }
 
         // No trailing gap: the heading that follows brings its own leading

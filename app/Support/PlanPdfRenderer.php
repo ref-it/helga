@@ -425,6 +425,9 @@ final class PlanPdfRenderer
 
     private Collection $categoryNames;
 
+    /** How many form fields the sheet has, which decides how the sans is embedded. */
+    private int $formFields = 0;
+
     /**
      * The shifts this sheet is made of. Usually the plan's own, but an export
      * can narrow it down to one category or one shift.
@@ -470,6 +473,7 @@ final class PlanPdfRenderer
     ): string {
         $this->categoryNames = $categoryNames;
         $this->shifts = ($shifts ?? $plan->shifts)->values();
+        $this->formFields = 0;
 
         // 'pdfua2' turns on tagged output: every call below that writes text
         // attaches it to the open structure element, so the document carries a
@@ -520,6 +524,8 @@ final class PlanPdfRenderer
         // once every page exists, the total is known and the footer can be
         // stamped onto each one - no second render pass needed
         $this->drawPageNumbers();
+
+        $this->embedFormFont();
 
         return $this->pdf->getOutPDFString();
     }
@@ -606,6 +612,15 @@ final class PlanPdfRenderer
     private function drawIcon(string $name, float $x, float $y, float $lineHeight, string $color): void
     {
         $middle = $y + $this->capMiddleOffset($lineHeight);
+
+        // The SVG importer registers a font for every element it styles, and
+        // an icon that names no font inherits the one currently selected -
+        // under a style, by the name of its file rather than by family and
+        // style, which makes a second key for a face already loaded and
+        // embeds it twice. Selecting the plain sans first costs nothing,
+        // because it is loaded anyway, and the icons carry no text.
+        $this->font('', self::TABLE_FONT_SIZE);
+
         $oid = $this->pdf->addSVG(
             '@'.$this->lucideIcon($name, $color),
             $x,
@@ -1154,18 +1169,24 @@ final class PlanPdfRenderer
      * not a value exists - the printout is filled in by hand, so the lines
      * have to be there to write on.
      *
-     * @return list<array{0: string, 1: float, 2: bool, 3: float, 4: string}>
+     * The last two entries of a line are what an empty slot needs: the name
+     * of the form field that stands over it, and the label that says what
+     * belongs on it.
+     *
+     * @return list<array{0: string, 1: float, 2: bool, 3: float, 4: string, 5: string, 6: string}>
      */
     private function helperRowStack(?Subscription $subscription): array
     {
         return [
-            [$subscription->name ?? '', self::TABLE_FONT_SIZE, true, 0.0, ''],
+            [$subscription->name ?? '', self::TABLE_FONT_SIZE, true, 0.0, '', 'name', __('subscription.name')],
             [
                 $subscription->email ?? '',
                 self::CONTACT_FONT_SIZE,
                 false,
                 self::CONTACT_LINE_GAP,
                 self::contactLink((string) ($subscription->email ?? '')),
+                'email',
+                __('subscription.email'),
             ],
             [
                 $subscription->phone ?? '',
@@ -1173,6 +1194,8 @@ final class PlanPdfRenderer
                 false,
                 self::CONTACT_LINE_GAP,
                 self::contactLink((string) ($subscription->phone ?? '')),
+                'phone',
+                __('subscription.phone'),
             ],
         ];
     }
@@ -1188,7 +1211,7 @@ final class PlanPdfRenderer
      * which has to know how tall the first row will be before it can tell
      * whether the heading still fits above it.
      *
-     * @param  list<array{0: string, 1: float, 2: bool, 3: float, 4: string}>  $stack
+     * @param  list<array{0: string, 1: float, 2: bool, 3: float, 4: string, 5: string, 6: string}>  $stack
      * @param  array<string, array{x: float, width: float, label: string}>  $columns
      * @return array{0: float, 1: list<float>}
      */
@@ -1286,7 +1309,23 @@ final class PlanPdfRenderer
             // person, so they are not columns of their own
             $this->beginTag('TD', null, [], true);
             $lineY = $textY;
-            foreach ($stack as $line => [$text, $fontSize, $hyphenate, $gap, $href]) {
+            foreach ($stack as $line => [$text, $fontSize, $hyphenate, $gap, $href, $field, $label]) {
+                // Every empty line gets a field, not only the lines of a free
+                // slot: a helper who left no phone number leaves a gap in an
+                // otherwise taken row, and that gap is as fillable as any.
+                if ($text === '') {
+                    $this->formField(
+                        $shift,
+                        $slot,
+                        $field,
+                        $label,
+                        $columns['name']['x'] + self::CELL_PADDING,
+                        $lineY + $gap,
+                        $nameWidth,
+                        $this->lineHeight($fontSize),
+                    );
+                }
+
                 if ($text !== '') {
                     $this->font('', $fontSize);
                     $this->breakMode($hyphenate);
@@ -1317,12 +1356,44 @@ final class PlanPdfRenderer
 
             if (isset($columns['size'])) {
                 $this->beginTag('TD', null, [], true);
-                $this->text($size, $columns['size']['x'] + self::CELL_PADDING, $textY, $columns['size']['width'] - 2 * self::CELL_PADDING);
+                $sizeWidth = $columns['size']['width'] - 2 * self::CELL_PADDING;
+                if ($size === '') {
+                    $this->formField(
+                        $shift,
+                        $slot,
+                        'size',
+                        __('subscription.clothingSize'),
+                        $columns['size']['x'] + self::CELL_PADDING,
+                        $textY,
+                        $sizeWidth,
+                        $this->lineHeight(self::TABLE_FONT_SIZE),
+                    );
+                }
+
+                $this->text($size, $columns['size']['x'] + self::CELL_PADDING, $textY, $sizeWidth);
                 $this->endTag();
             }
 
             $this->beginTag('TD', null, [], true);
-            $this->text($comment, $columns['comment']['x'] + self::CELL_PADDING, $textY, $columns['comment']['width'] - 2 * self::CELL_PADDING);
+            $commentWidth = $columns['comment']['width'] - 2 * self::CELL_PADDING;
+            if ($comment === '') {
+                // The comment gets the whole cell rather than one line of it:
+                // it is the one field with no fixed shape, and the cell is
+                // three lines tall because of the column beside it.
+                $this->formField(
+                    $shift,
+                    $slot,
+                    'comment',
+                    __('subscription.comment'),
+                    $columns['comment']['x'] + self::CELL_PADDING,
+                    $textY,
+                    $commentWidth,
+                    $rowHeight - 2 * self::CELL_PADDING,
+                    multiline: true,
+                );
+            }
+
+            $this->text($comment, $columns['comment']['x'] + self::CELL_PADDING, $textY, $commentWidth);
             $this->endTag();
 
             $this->endTag();
@@ -2289,6 +2360,79 @@ final class PlanPdfRenderer
      * writing and gives each one that no structure element claims a Link
      * element of its own.
      */
+    /**
+     * Embeds the whole sans rather than a subset of it, once the sheet has
+     * form fields on it.
+     *
+     * A viewer draws what someone types into a field with the font the
+     * AcroForm names as its default appearance, and that is the font current
+     * when the file is written - this one. Subset, it carries only the glyphs
+     * this plan happens to use, so a helper called Jörg could type a name the
+     * font cannot show. Asking for the font again without a subset turns
+     * subsetting off for it (the library subsets a font only when every
+     * request for it asked to), which costs a few hundred kilobytes and is
+     * why it only happens for a sheet that has fields at all.
+     */
+    private function embedFormFont(): void
+    {
+        if ($this->formFields === 0) {
+            return;
+        }
+
+        $this->pdf->font->insert($this->pdf->pon, self::FONT_SANS, '', self::TABLE_FONT_SIZE, subset: false);
+    }
+
+    /**
+     * A text field over the empty cell of a free slot, so the sheet can be
+     * filled in on screen as well as by hand. It prints nothing while it is
+     * empty, so the printed form is unchanged.
+     *
+     * The field carries a description (/TU): ISO 14289 asks every widget for
+     * one, and it is what a screen reader announces instead of the bare field
+     * name. The name itself has to be unique across the document or two
+     * fields would share their value - shift and slot make it so.
+     *
+     * No border and no background: the table already draws the cell, and a
+     * second frame inside it would read as a box within a box.
+     */
+    private function formField(
+        Shift $shift,
+        int $slot,
+        string $field,
+        string $label,
+        float $x,
+        float $y,
+        float $width,
+        float $height,
+        bool $multiline = false,
+    ): void {
+        $oid = $this->pdf->setAnnotation($x, $y, $width, $height, $label, [
+            'subtype' => 'Widget',
+            'ft' => 'Tx',
+            't' => 'shift-'.$shift->id.'-slot-'.($slot + 1).'-'.$field,
+            'tu' => __('plan.slotField', [
+                'field' => $label,
+                'index' => $slot + 1,
+                'shift' => $shift->title,
+            ]),
+            // bit 13 of the field flags, the only one a plain text field needs
+            'ff' => $multiline ? 4096 : 0,
+            // Print: a field the viewer hides on paper would be a field that
+            // exists only on screen, and this sheet is printed more often
+            // than it is filled in
+            'f' => 4,
+            // An empty appearance rather than none: the catalog says
+            // /NeedAppearances false, so a viewer is entitled to draw nothing
+            // at all for a field that brings no appearance stream of its own.
+            'ap' => ['n' => ''],
+        ]);
+
+        if ($oid > 0) {
+            $this->pdf->page->addAnnotRef($oid);
+            $this->formFields++;
+        }
+    }
+
     private function linkArea(string $href, float $x, float $y, float $width, float $size): void
     {
         $oid = $this->pdf->setLink($x, $y, $width, $this->lineHeight($size), $href);

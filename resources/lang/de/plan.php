@@ -43,6 +43,7 @@ return [
     'allowUnsubscribe' => 'Erlaube Teilnehmenden sich selbständig wieder auszutragen',
     'showSubscriberNames' => 'Namen eingetragener Personen für angemeldete Benutzer:innen sichtbar machen (nie öffentlich sichtbar)',
     'slotsOccupied' => ':filled von :total Plätzen belegt',
+    'slotField' => ':field, Platz :index (:shift)',
     'export' => 'Exportieren',
     'exportPdf' => 'Als PDF exportieren',
     'exportTemplate' => 'Als Vorlage exportieren',

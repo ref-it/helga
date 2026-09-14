@@ -64,6 +64,7 @@ return [
     'exportTemplate' => 'Exportar como plantilla',
     'showSubscriberNames' => 'Mostrar los nombres de las personas inscritas a usuarios con sesión iniciada (nunca visibles públicamente).',
     'slotsOccupied' => ':filled de :total plazas ocupadas',
+    'slotField' => ':field, plaza :index (:shift)',
     'dangerZone' => 'Zona de peligro',
     'delete' => 'Eliminar plan de turnos',
     'confirmDelete' => '¿Seguro que quieres eliminar este plan de turnos de forma permanente? Se perderán todos los turnos e inscripciones.',

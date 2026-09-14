@@ -43,6 +43,7 @@ return [
     'allowUnsubscribe' => 'Allow people to unsubscribe from their shifts themselves.',
     'showSubscriberNames' => 'Make subscriber names visible to logged-in users (never shown publicly).',
     'slotsOccupied' => ':filled of :total slots filled',
+    'slotField' => ':field, slot :index (:shift)',
     'export' => 'Export',
     'exportPdf' => 'Export as PDF',
     'exportTemplate' => 'Export as template',

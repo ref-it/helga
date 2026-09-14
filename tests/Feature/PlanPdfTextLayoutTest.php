@@ -32,6 +32,18 @@ function pdfContent(string $pdf): string
 }
 
 /**
+ * The left margin in PDF points - where a line of body text starts. Read from
+ * the renderer rather than written out, so a changed margin moves the
+ * assertions with it instead of turning them into a puzzle.
+ */
+function leftMarginPt(): float
+{
+    $margin = (new ReflectionClass(PlanPdfRenderer::class))->getConstants()['MARGIN_LEFT'];
+
+    return $margin * 72 / 25.4;
+}
+
+/**
  * The x positions, in PDF points, at which the description's runs are drawn.
  * The date beside a shift heading is the only other 10pt text, and it sits in
  * the right-hand column, so anything left of the middle is description.
@@ -180,11 +192,11 @@ test('a word wider than the column is broken rather than run off the page', func
     // it finds. Left unbroken it ran past the right margin and off the sheet.
     preg_match_all('#/F\d+ 10\.0+ Tf.*?([\d.]+) ([\d.]+) Td#s', pdfContent($pdf), $matches, PREG_SET_ORDER);
 
-    // a description line starts at the left margin, 22mm = 62.36pt; the table
-    // head labels sit inside their cells and start further right
+    // a description line starts at the left margin; the table head labels sit
+    // inside their cells and start further right
     $lines = [];
     foreach ($matches as $match) {
-        if (abs(((float) $match[1]) - 62.362205) < 0.5) {
+        if (abs(((float) $match[1]) - leftMarginPt()) < 0.5) {
             $lines[$match[2]] = true;
         }
     }
@@ -311,10 +323,10 @@ test('a block quote gets one unbroken bar beside it', function (): void {
         $vertical[] = ['x' => $x1, 'from' => min($y1, $y2), 'to' => max($y1, $y2)];
     }
 
-    // MARGIN_LEFT, in points: 22mm is where the surrounding text starts
+    // the left margin, in points: where the surrounding text starts
     $spans = [];
     foreach ($vertical as $segment) {
-        if (abs($segment['x'] - 62.362205) < 0.5) {
+        if (abs($segment['x'] - leftMarginPt()) < 0.5) {
             $spans[] = [$segment['from'], $segment['to']];
         }
     }
@@ -345,7 +357,7 @@ test('a block quote gets one unbroken bar beside it', function (): void {
             continue;
         }
 
-        expect(abs($segment['x'] - 62.362205))
+        expect(abs($segment['x'] - leftMarginPt()))
             ->toBeLessThan(0.5, 'a second bar sits beside the quote at x='.$segment['x']);
     }
 });
@@ -378,7 +390,7 @@ test('the health certificate badge keeps the same padding above and below its ty
 
         // the badge is the only artifact at the left margin that is a few
         // millimetres tall; the rules are hairlines spanning the text width
-        if (abs(min($xs) - 62.362205) < 0.5 && (max($ys) - min($ys)) > 8.0) {
+        if (abs(min($xs) - leftMarginPt()) < 0.5 && (max($ys) - min($ys)) > 8.0) {
             $frame = ['top' => max($ys), 'height' => max($ys) - min($ys)];
             break;
         }

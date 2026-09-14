@@ -69,15 +69,15 @@ final class PlanPdfRenderer
      * page and have to stay commensurable. The frame and the rhythm inside it
      * are two different jobs.
      *
-     * The text block itself cannot also be 1:sqrt(2). At the 172.4mm width
-     * these margins leave, it would need 243.9mm of height, so 53.1mm of
+     * The text block itself cannot also be 1:sqrt(2). At the 167.3mm width
+     * these margins leave, it would need 236.6mm of height, so 60.4mm of
      * vertical margin instead of 29.9mm - far too much paper to give up on a
      * form that gets filled in by hand.
      */
     private const SQRT2 = 1.4142135623730951;
 
-    /** Wide enough to punch holes without hitting the text (DIN 5008 Lochrand). */
-    private const MARGIN_LEFT = 22.0;
+    /** DIN 5008 Lochrand */
+    private const MARGIN_LEFT = 25.0;
 
     private const MARGIN_RIGHT = self::MARGIN_LEFT / self::SQRT2;
 

@@ -156,6 +156,16 @@ final class PlanPdfRenderer
      */
     private const CONTACT_LABEL_GAP = self::SPACE;
 
+    /**
+     * Extra air above the contact box, in mm, on top of the paragraph gap the
+     * description already leaves. Like the badge, the box is a boxed element
+     * between two runs of text, and its border has to stand clear of them:
+     * below it the first shift heading keeps the full block gap, so without
+     * this the box would sit visibly closer to the text above than to the
+     * one below and read as attached to it.
+     */
+    private const CONTACT_BOX_GAP = self::SHIFT_GAP - self::PARAGRAPH_GAP;
+
     private const HEADING_SIZE_CONTACT = 10.0;
 
     /**
@@ -613,7 +623,7 @@ final class PlanPdfRenderer
             $this->font('', 10);
             $line = $this->measure('Xg', $this->contentWidth);
 
-            $boxTop = $this->cursorY;
+            $boxTop = $this->cursorY + self::CONTACT_BOX_GAP;
             $boxHeight = (2 * self::CONTACT_BOX_PADDING)
                 + $labelLine + self::CONTACT_LABEL_GAP + $line;
 

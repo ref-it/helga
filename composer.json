@@ -19,6 +19,7 @@
         "livewire/livewire": "^4.0",
         "mews/captcha": "^3.4",
         "mews/purifier": "^3.4",
+        "spatie/icalendar-generator": "^3.3",
         "tecnickcom/tc-lib-pdf": "^8.73"
     },
     "require-dev": {

@@ -37,4 +37,5 @@ return [
     'successfullyUpdated' => 'Successfully updated shift',
     'successfullyCreated' => 'Successfully created shift',
     'confirmDelete' => 'Are you sure to delete this shift?',
+    'addToCalendar' => 'Add to calendar',
 ];

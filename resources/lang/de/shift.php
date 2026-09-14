@@ -37,4 +37,5 @@ return [
     'successfullyUpdated' => 'Schicht aktualisiert',
     'successfullyCreated' => 'Schicht erstellt',
     'confirmDelete' => 'Bist du sicher, dass du die Schicht löschen willst?',
+    'addToCalendar' => 'In Kalender eintragen',
 ];

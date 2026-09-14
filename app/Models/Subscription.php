@@ -79,7 +79,7 @@ class Subscription extends Model
             ]);
         }
 
-        $this->notify(new SendEmailVerification($link, $unsubscribeLink));
+        $this->notify(new SendEmailVerification($link, $unsubscribeLink, $this->shift));
     }
 
     /**

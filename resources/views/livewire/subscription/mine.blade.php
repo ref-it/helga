@@ -29,13 +29,27 @@
                                         {!! \App\Http\Controllers\PlanController::buildDateString($shift->start, $shift->end) !!}
                                     </div>
                                 </div>
-                                @if ($shift->selfUnsubscribeAllowed())
-                                    <flux:modal.trigger name="unsubscribe-shift-{{ $shift->id }}">
-                                        <flux:button size="sm" icon="ban" class="whitespace-nowrap">
-                                            {{ __('subscription.unsubscribe') }}
-                                        </flux:button>
-                                    </flux:modal.trigger>
-                                @endif
+                                {{-- the calendar entry is always on offer, so
+                                     the actions moved into a menu rather than
+                                     standing beside an unsubscribe button --}}
+                                <flux:dropdown>
+                                    <flux:button size="sm" icon="ellipsis-vertical" />
+                                    <flux:menu>
+                                        <flux:menu.item
+                                            icon="calendar-days"
+                                            href="{{ route('plan.shift.calendar', ['plan' => $plan->view_id, 'shift' => $shift]) }}"
+                                        >
+                                            {{ __('shift.addToCalendar') }}
+                                        </flux:menu.item>
+                                        @if ($shift->selfUnsubscribeAllowed())
+                                            <flux:modal.trigger name="unsubscribe-shift-{{ $shift->id }}">
+                                                <flux:menu.item variant="danger" icon="ban">
+                                                    {{ __('subscription.unsubscribe') }}
+                                                </flux:menu.item>
+                                            </flux:modal.trigger>
+                                        @endif
+                                    </flux:menu>
+                                </flux:dropdown>
                             </div>
                         @endforeach
                     </div>

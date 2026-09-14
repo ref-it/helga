@@ -38,4 +38,5 @@ return [
     'successfullyUpdated' => 'Plan actualizado',
     'successfullyCreated' => 'Plan creado',
     'confirmDelete' => '¿Estás seguro de que quieres borrar el turno?',
+    'addToCalendar' => 'Añadir al calendario',
 ];

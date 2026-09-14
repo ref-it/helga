@@ -9,6 +9,12 @@
             >
                 {{ __('plan.show_subscriptions') }}
             </flux:menu.item>
+            <flux:menu.item
+                icon="calendar-days"
+                href="{{ route('plan.shift.calendar', ['plan' => $plan->view_id, 'shift' => $shift]) }}"
+            >
+                {{ __('shift.addToCalendar') }}
+            </flux:menu.item>
             @can('update', $shift)
                 <flux:menu.item
                     icon="pencil"

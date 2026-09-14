@@ -10,6 +10,8 @@
   </testsuites>
   <php>
     <server name="APP_ENV" value="testing"/>
+    <!-- pinned so the assertions do not move with the shipped default -->
+    <server name="APP_TIMEZONE" value="UTC"/>
     <server name="BCRYPT_ROUNDS" value="4"/>
     <server name="CACHE_DRIVER" value="array"/>
     <server name="DB_CONNECTION" value="sqlite"/>

@@ -125,13 +125,16 @@ return [
     | Application Timezone
     |--------------------------------------------------------------------------
     |
-    | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. We have gone
-    | ahead and set this to a sensible default for you out of the box.
+    | The timezone the installation runs in, as an IANA identifier. It is what
+    | the PHP date and date-time functions work in, and it is the zone the
+    | shift times of a plan are meant in: shifts are entered as wall-clock
+    | times and shown back unchanged, so only a calendar entry has to know
+    | which zone that was - otherwise the appointment lands at the wrong hour
+    | on a device set to another one.
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'UTC'),
 
     /*
     |--------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-<div class="p-8 space-y-6">
+<div class="p-6 sm:px-8 space-y-6">
     <div class="flex flex-col md:flex-row gap-6">
         <h1 class="text-2xl font-semibold">{{ __('home.Shiftplan') }}</h1>
         <div class="flex gap-2 md:ml-auto">

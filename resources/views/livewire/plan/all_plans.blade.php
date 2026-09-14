@@ -1,4 +1,4 @@
-<div class="p-8 space-y-6">
+<div class="p-6 sm:px-8 space-y-6">
     <h1 class="text-2xl font-semibold">{{ __('plan.adminPlans') }}</h1>
 
     <flux:input wire:model.live.debounce.300ms="search" icon="search" placeholder="{{ __('home.searchPlans') }}" clearable />

@@ -1,4 +1,4 @@
-<div class="p-8 space-y-6">
+<div class="p-6 sm:px-8 space-y-6">
     @include('partials.plan_title')
 
     @can('manage', $plan)

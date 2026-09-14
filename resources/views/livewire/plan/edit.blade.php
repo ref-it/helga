@@ -1,4 +1,4 @@
-<div class="p-8 flex flex-col gap-6 min-h-full">
+<div class="p-6 sm:px-8 flex flex-col gap-6 min-h-full">
     <h1 class="text-2xl font-semibold">{{ __('plan.edit') }}</h1>
 
     <div class="grid grid-cols-2 gap-6">

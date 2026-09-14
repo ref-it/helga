@@ -4,7 +4,7 @@
 @endphp
 
 @if ($rangeStart && $rangeEnd)
-    <div class="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+    <div class="text-xs text-zinc-500 dark:text-zinc-400">
         @include('partials.compact_date_range', ['start' => $rangeStart, 'end' => $rangeEnd])
     </div>
 @endif

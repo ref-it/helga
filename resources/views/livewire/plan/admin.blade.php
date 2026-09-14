@@ -1,6 +1,6 @@
-<div class="p-8">
+<div class="p-6 sm:px-8">
     <div class="space-y-6">
-        <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div class="flex flex-col items-start gap-3 md:flex-row md:justify-between">
             <div class="space-y-4 flex-1 min-w-0">
                 <div class="flex items-center gap-3">
                     <h1 class="text-2xl font-semibold">{{ $plan->title }}</h1>

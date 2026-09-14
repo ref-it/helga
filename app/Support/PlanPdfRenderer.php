@@ -59,36 +59,33 @@ final class PlanPdfRenderer
     private const SPACE = 1.75;
 
     /**
-     * The page frame repeats the proportion of the sheet: A4 is 1:sqrt(2), and
-     * so is each pair of opposing margins. Two of the four are fixed by
-     * something outside typography - the left one by the hole punch, the
-     * bottom one by the footer - and the other two follow from them.
+     * The page frame, all four of it from DIN 5008: 25mm left (the norm's
+     * 24.1mm rounded up, which is also what lets a hole punch miss the text),
+     * 20mm top, and the values the norm recommends for the two it only sets a
+     * minimum for - 20mm right and 25mm bottom.
      *
-     * Unlike the block spacings this is deliberately off the SPACE grid: a
+     * That leaves both pairs standing 5:4, horizontally as well as
+     * vertically, with the wider one to the left and to the foot: the text
+     * block sits a little above the middle of the sheet, which is where it
+     * has to sit to look centred, and it keeps clear of the punch edge.
+     *
+     * Unlike the block spacings these are deliberately off the SPACE grid: a
      * margin is a proportion, set once per page, while gaps add up down the
      * page and have to stay commensurable. The frame and the rhythm inside it
      * are two different jobs.
-     *
-     * The text block itself cannot also be 1:sqrt(2). At the 167.3mm width
-     * these margins leave, it would need 236.6mm of height, so 60.4mm of
-     * vertical margin instead of 29.9mm - far too much paper to give up on a
-     * form that gets filled in by hand.
      */
-    private const SQRT2 = 1.4142135623730951;
-
-    /** DIN 5008 Lochrand */
     private const MARGIN_LEFT = 25.0;
 
-    private const MARGIN_RIGHT = self::MARGIN_LEFT / self::SQRT2;
+    private const MARGIN_RIGHT = 20.0;
 
-    private const MARGIN_TOP = self::MARGIN_BOTTOM / self::SQRT2;
+    private const MARGIN_TOP = 20.0;
 
     /**
-     * Wide enough to hold the page number strip below the text area with air
-     * on both sides of it - at 15mm the footer had to sit 7mm from the paper
-     * edge, which is past where many printers stop printing.
+     * Also what leaves the page number strip room below the text area with
+     * air on both sides of it - at 15mm the footer had to sit 7mm from the
+     * paper edge, which is past where many printers stop printing.
      */
-    private const MARGIN_BOTTOM = 10 * self::SPACE;
+    private const MARGIN_BOTTOM = 25.0;
 
     /** Distance from the bottom paper edge to the bottom of the page number. */
     private const FOOTER_EDGE_GAP = 10.0;

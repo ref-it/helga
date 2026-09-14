@@ -63,8 +63,7 @@ test('the pdf palette matches the tailwind entries the interface uses', function
     $reflection = new ReflectionClass(PlanPdfRenderer::class);
     $constants = $reflection->getConstants();
 
-    foreach (['SKY_700' => 'sky-700', 'AMBER_800' => 'amber-800', 'ZINC_400' => 'zinc-400',
-        'ZINC_500' => 'zinc-500', 'ZINC_600' => 'zinc-600', 'ZINC_700' => 'zinc-700'] as $constant => $entry) {
+    foreach (['SKY_700' => 'sky-700', 'YELLOW_800' => 'yellow-800', 'ZINC_500' => 'zinc-500', 'ZINC_600' => 'zinc-600', 'ZINC_700' => 'zinc-700'] as $constant => $entry) {
         $expected = tailwindColor($theme, $entry);
 
         expect($expected)->not->toBeNull("tailwind has no {$entry}");

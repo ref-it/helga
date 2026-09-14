@@ -39,7 +39,7 @@
         <div class="p-4 space-y-4">
             @if($shift->requires_health_certificate)
                 <div>
-                    <flux:badge color="amber" icon="circle-alert">{{ __('shift.healthCertificateRequired') }}</flux:badge>
+                    <flux:badge color="yellow" icon="circle-alert">{{ __('shift.healthCertificateRequired') }}</flux:badge>
                 </div>
             @endif
 

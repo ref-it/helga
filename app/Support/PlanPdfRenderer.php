@@ -199,7 +199,6 @@ final class PlanPdfRenderer
     /** Resolution SVG logos are rasterised at, in dots per inch. */
     private const LOGO_DPI = 600;
 
-    /** Grey shared by every rule in the document - table and headings alike. */
     /**
      * The palette, taken from the Tailwind theme the rest of the application
      * is built on, so that a plan on screen and the same plan on paper are
@@ -215,9 +214,7 @@ final class PlanPdfRenderer
 
     private const COLOR_SKY_700 = '#0069a8';
 
-    private const COLOR_AMBER_800 = '#973c00';
-
-    private const COLOR_ZINC_400 = '#9f9fa9';
+    private const COLOR_YELLOW_800 = '#894b00';
 
     private const COLOR_ZINC_500 = '#71717b';
 
@@ -225,7 +222,8 @@ final class PlanPdfRenderer
 
     private const COLOR_ZINC_700 = '#3f3f46';
 
-    private const RULE_COLOR = self::COLOR_ZINC_400;
+    /** Grey shared by every rule and box border in the document. */
+    private const RULE_COLOR = self::COLOR_ZINC_500;
 
     /**
      * Width of the bar beside a block quote, in mm. Heavier than the hairlines
@@ -280,7 +278,7 @@ final class PlanPdfRenderer
      * than this one notice deserves, and it would cost toner on a sheet whose
      * purpose is to be printed.
      */
-    private const BADGE_COLOR = self::COLOR_AMBER_800;
+    private const BADGE_COLOR = self::COLOR_YELLOW_800;
 
     /**
      * Extra air above and below the health certificate badge, in mm, on top
@@ -621,7 +619,7 @@ final class PlanPdfRenderer
 
             // The box is decoration and so an artifact - what it means is in
             // the label it holds, not in its border.
-            $this->pushStyle(['lineWidth' => 0.18, 'lineColor' => self::COLOR_ZINC_400]);
+            $this->pushStyle(['lineWidth' => 0.18, 'lineColor' => self::RULE_COLOR]);
             $this->artifact($this->pdf->graph->getRoundedRect(
                 self::MARGIN_LEFT,
                 $boxTop,
@@ -1248,7 +1246,7 @@ final class PlanPdfRenderer
                 $textY,
                 self::COL_INDEX_WIDTH - self::CELL_PADDING,
                 halign: 'R',
-                color: self::COLOR_ZINC_500,
+                color: self::COLOR_ZINC_600,
             );
             $this->endTag();
 
@@ -1474,7 +1472,7 @@ final class PlanPdfRenderer
             // Pagination is page furniture, not document content: marking it
             // as an artifact keeps "3 / 68" out of the reading order instead
             // of interrupting the last table row on every page.
-            $this->pushStyle(['fillColor' => self::COLOR_ZINC_500]);
+            $this->pushStyle(['fillColor' => self::COLOR_ZINC_600]);
             // Anchored to the paper edge rather than to the text area, so the
             // gap that matters for printing cannot drift when the margin
             // changes.

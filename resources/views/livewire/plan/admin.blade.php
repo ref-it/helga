@@ -111,7 +111,24 @@
                 @foreach($plan->shifts->groupBy('type') as $type => $shiftsInGroup)
                     @if($type !== '')
                         <flux:fieldset>
-                            <legend>{{ $categoryNames[$type] ?? $type }}</legend>
+                            <legend class="flex items-center justify-between gap-2">
+                                {{ $categoryNames[$type] ?? $type }}
+                                @can('manage', $plan)
+                                    <flux:dropdown align="end" class="-my-2">
+                                        <flux:button size="sm" variant="ghost" icon="ellipsis-vertical" />
+                                        <flux:menu>
+                                            <flux:menu.item
+                                                icon="printer"
+                                                href="{{ route('plan.category.export.pdf', ['plan' => $plan, 'category' => $type]) }}"
+                                                target="_blank"
+                                                rel="noopener"
+                                            >
+                                                {{ __('plan.exportPdf') }}
+                                            </flux:menu.item>
+                                        </flux:menu>
+                                    </flux:dropdown>
+                                @endcan
+                            </legend>
                             <div class="p-4">
                                 @include('livewire.plan.partials.admin_shift_table', ['shifts' => $shiftsInGroup])
                             </div>

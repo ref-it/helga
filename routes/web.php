@@ -79,6 +79,10 @@ Route::get('/plans/{plan}/export', [PlanController::class, 'export'])
     ->middleware(['auth', 'can:manage,plan'])->name('plan.export');
 Route::get('/plans/{plan}/export/pdf', [PlanController::class, 'exportPdf'])
     ->middleware(['auth', 'can:manage,plan'])->name('plan.export.pdf');
+Route::get('/plans/{plan}/export/pdf/shift/{shift}', [PlanController::class, 'exportShiftPdf'])
+    ->middleware(['auth', 'can:manage,plan'])->name('plan.shift.export.pdf');
+Route::get('/plans/{plan}/export/pdf/category/{category}', [PlanController::class, 'exportCategoryPdf'])
+    ->middleware(['auth', 'can:manage,plan'])->name('plan.category.export.pdf');
 // an import always creates a new plan (see PlanController::import), so there
 // is no plan to authorize against - being logged in is the whole check
 Route::post('/plans/import', [PlanController::class, 'import'])->middleware('auth')->name('plan.import');

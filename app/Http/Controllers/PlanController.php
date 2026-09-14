@@ -7,9 +7,12 @@ use App\Http\Requests\StoreShiftRequest;
 use App\Http\Requests\StoreSubscriptionRequest;
 use App\Http\Requests\UpdatePlanRequest;
 use App\Models\Plan;
+use App\Models\Shift;
+use App\Models\ShiftCategory;
 use App\Support\PlanPdfRenderer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Date;
@@ -209,8 +212,61 @@ class PlanController extends Controller
     public function exportPdf(Plan $plan, PlanPdfRenderer $renderer): Response
     {
         // authorized by the 'can:manage,plan' route middleware
-        $raw = $renderer->render($plan, $plan->shiftCategories->pluck('name', 'id'));
-        $filename = Str::slug(__('plan.shiftPlan').'-'.$plan->title).'.pdf';
+        return $this->pdfResponse($plan, $renderer, null, $plan->title);
+    }
+
+    /**
+     * The same sheet for a single shift - for the helpers of that one shift,
+     * who have no use for the rest of the plan.
+     */
+    public function exportShiftPdf(Plan $plan, Shift $shift, PlanPdfRenderer $renderer): Response
+    {
+        // authorized by the 'can:manage,plan' route middleware; that the shift
+        // is one of this plan's is not, so it is checked here
+        abort_unless($shift->plan_id === $plan->id, 404);
+
+        return $this->pdfResponse(
+            $plan,
+            $renderer,
+            collect([$shift]),
+            $plan->title.' - '.$shift->title,
+        );
+    }
+
+    /**
+     * The same sheet for one category, with its shifts in the order the whole
+     * plan would put them in.
+     */
+    public function exportCategoryPdf(Plan $plan, ShiftCategory $category, PlanPdfRenderer $renderer): Response
+    {
+        abort_unless($category->plan_id === $plan->id, 404);
+
+        $shifts = $plan->shifts->where('type', (string) $category->id);
+        abort_if($shifts->isEmpty(), 404);
+
+        return $this->pdfResponse(
+            $plan,
+            $renderer,
+            $shifts,
+            $plan->title.' - '.$category->name,
+        );
+    }
+
+    /**
+     * One rendered sheet as a response.
+     *
+     * @param  Collection<int, Shift>|null  $shifts  null for the whole plan
+     * @param  string  $name  what the document is called - the title a viewer
+     *                        announces, and what the filename is built from
+     */
+    private function pdfResponse(
+        Plan $plan,
+        PlanPdfRenderer $renderer,
+        ?Collection $shifts,
+        string $name,
+    ): Response {
+        $raw = $renderer->render($plan, $plan->shiftCategories->pluck('name', 'id'), $shifts, $name);
+        $filename = Str::slug(__('plan.shiftPlan').'-'.$name).'.pdf';
 
         // Shown in the browser's own viewer rather than dropped into the
         // download folder: the sheet exists to be printed, and every viewer

@@ -429,6 +429,14 @@ final class PlanPdfRenderer
     private Collection $categoryNames;
 
     /**
+     * The shifts this sheet is made of. Usually the plan's own, but an export
+     * can narrow it down to one category or one shift.
+     *
+     * @var Collection<int, Shift>
+     */
+    private Collection $shifts;
+
+    /**
      * Heading level for a shift title. Shifts sit under a category heading
      * when the plan uses categories, and directly under the plan title when
      * it does not - skipping a level would leave a gap in the outline that
@@ -445,9 +453,26 @@ final class PlanPdfRenderer
     /** @var array<string, float> Space width per style and size, in mm. */
     private array $richSpaceWidths = [];
 
-    public function render(Plan $plan, Collection $categoryNames): string
-    {
+    /**
+     * @param  Collection<int|string, string>  $categoryNames
+     * @param  Collection<int, Shift>|null  $shifts  what to put on the sheet -
+     *                                               null for the whole plan.
+     *                                               The header stays either
+     *                                               way: a sheet of one shift
+     *                                               is still that plan's, and
+     *                                               pinned to a wall it has to
+     *                                               say whose and whom to ask.
+     * @param  string|null  $title  what the document is called, for the viewer
+     *                              and for whoever hears it read out
+     */
+    public function render(
+        Plan $plan,
+        Collection $categoryNames,
+        ?Collection $shifts = null,
+        ?string $title = null,
+    ): string {
         $this->categoryNames = $categoryNames;
+        $this->shifts = ($shifts ?? $plan->shifts)->values();
 
         // 'pdfua2' turns on tagged output: every call below that writes text
         // attaches it to the open structure element, so the document carries a
@@ -473,7 +498,7 @@ final class PlanPdfRenderer
 
         // the title is what a screen reader announces for the document, and
         // PDF/UA mode makes the viewer show it instead of the file name
-        $this->pdf->setTitle($plan->title);
+        $this->pdf->setTitle($title ?? $plan->title);
         $this->pdf->setLanguage(str_replace('_', '-', app()->getLocale()));
 
         $this->hyphenPatterns = $this->hyphenationPatterns();
@@ -493,7 +518,7 @@ final class PlanPdfRenderer
         // the outer one, which would leave the element that actually carries
         // the content in the default namespace.
         $this->drawPlanHeader($plan);
-        $this->drawShifts($plan);
+        $this->drawShifts();
 
         // once every page exists, the total is known and the footer can be
         // stamped onto each one - no second render pass needed
@@ -829,9 +854,9 @@ final class PlanPdfRenderer
         ], fn (?string $v): bool => ! empty($v)));
     }
 
-    private function drawShifts(Plan $plan): void
+    private function drawShifts(): void
     {
-        $shifts = $plan->shifts;
+        $shifts = $this->shifts;
 
         foreach ($shifts as $index => $shift) {
             $previous = $index > 0 ? $shifts[$index - 1] : null;

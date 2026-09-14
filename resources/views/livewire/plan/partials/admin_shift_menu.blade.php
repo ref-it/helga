@@ -12,6 +12,18 @@
             <flux:menu.item icon="calendar-days" wire:click="shiftCalendar({{ $shift->id }})">
                 {{ __('shift.addToCalendar') }}
             </flux:menu.item>
+            @can('manage', $plan)
+                {{-- opens in its own tab, where the browser's viewer can print
+                     or save it --}}
+                <flux:menu.item
+                    icon="printer"
+                    href="{{ route('plan.shift.export.pdf', ['plan' => $plan, 'shift' => $shift]) }}"
+                    target="_blank"
+                    rel="noopener"
+                >
+                    {{ __('plan.exportPdf') }}
+                </flux:menu.item>
+            @endcan
             @can('update', $shift)
                 <flux:menu.item
                     icon="pencil"

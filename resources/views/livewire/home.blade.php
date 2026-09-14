@@ -29,7 +29,7 @@
                 <a
                     wire:navigate
                     href="{{route('plan.show', $plan)}}"
-                    class="px-4 py-3 flex items-center gap-3 bg-zinc-100 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-xs hover:ring-2 focus:ring-2 ring-(--color-accent-content)"
+                    class="px-4 py-3 flex items-center gap-4 bg-zinc-100 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-xs hover:ring-2 focus:ring-2 ring-(--color-accent-content)"
                 >
                     <div class="flex-1 min-w-0">
                         <div class="font-semibold truncate">{{ $plan->title }}</div>

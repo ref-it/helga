@@ -35,6 +35,7 @@ return [
     'captchaRequired' => 'Bitte gib die Zeichen aus dem Bild korrekt ein',
     'captchaRefresh' => 'Neues Bild laden',
     'mySubscriptions' => 'Meine Schichten',
+    'downloadCalendar' => 'Alle Schichten als Kalenderdatei',
     'noSubscriptions' => 'Du hast dich noch für keine Schicht eingetragen.',
     'emailVerifyHelpRequired' => 'Wir senden dir einen Link, um diese Adresse zu bestätigen.',
     'successfullyCreatedVerifyEmail' => 'Anmeldung erstellt. Bitte bestätige deine E-Mail-Adresse über den Link, den wir dir gesendet haben.',

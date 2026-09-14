@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Livewire\Plan;
 
+use App\Livewire\Concerns\DownloadsCalendar;
 use App\Models\Group;
 use App\Models\Plan;
 use App\Models\PlanShare;
@@ -12,9 +13,12 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class Admin extends Component
 {
+    use DownloadsCalendar;
+
     #[Locked]
     public Plan $plan;
 
@@ -38,6 +42,21 @@ class Admin extends Component
         $this->plan = $plan->loadMissing('shifts.subscriptions');
         $this->manageGroupsInput = $plan->sharedGroups()->where('access', PlanShare::MANAGE)->pluck('group')->all();
         $this->readGroupsInput = $plan->sharedGroups()->where('access', PlanShare::READ)->pluck('group')->all();
+    }
+
+    /**
+     * One shift of this plan as a calendar file, from the menu beside it.
+     *
+     * The shift is looked up through the plan: the id arrives from the
+     * browser, so it has to be one this page actually manages.
+     */
+    public function shiftCalendar(int $shift): StreamedResponse
+    {
+        $shift = $this->plan->shifts()->find($shift);
+
+        abort_if($shift === null, 404);
+
+        return $this->calendarDownload([$shift], $shift->title ?: 'shift');
     }
 
     public function render(): Factory|View

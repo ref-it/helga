@@ -27,6 +27,7 @@ return [
     'captchaRequired' => 'Por favor, introduce correctamente los caracteres de la imagen',
     'captchaRefresh' => 'Cargar una nueva imagen',
     'mySubscriptions' => 'Mis turnos',
+    'downloadCalendar' => 'Todos los turnos como archivo de calendario',
     'noSubscriptions' => 'Todavía no te has inscrito en ningún turno.',
     'emailVerifyHelpRequired' => 'Te enviaremos un enlace para confirmar esta dirección.',
     'successfullyCreatedVerifyEmail' => 'Registro creado. Por favor, confirma tu correo electrónico mediante el enlace que te hemos enviado.',

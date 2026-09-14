@@ -35,6 +35,7 @@ return [
     'captchaRequired' => 'Please enter the characters shown in the image correctly',
     'captchaRefresh' => 'Load a new image',
     'mySubscriptions' => 'My Shifts',
+    'downloadCalendar' => 'All shifts as a calendar file',
     'noSubscriptions' => "You haven't signed up for any shifts yet.",
     'emailVerifyHelpRequired' => "We'll send you a link to confirm this address.",
     'successfullyCreatedVerifyEmail' => 'Successfully subscribed to shift. Please check your email to confirm your address.',

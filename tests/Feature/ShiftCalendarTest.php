@@ -1,10 +1,14 @@
 <?php
 
+use App\Livewire\Plan\Admin;
+use App\Livewire\Subscription\Mine;
+use App\Models\Plan;
 use App\Models\Shift;
 use App\Models\User;
 use App\Notifications\SendEmailVerification;
 use App\Support\ShiftCalendar;
 use Illuminate\Support\Facades\Notification;
+use Livewire\Livewire;
 
 /**
  * The lines of an iCalendar file, unfolded again: a continuation starts with
@@ -16,6 +20,20 @@ use Illuminate\Support\Facades\Notification;
 function icalLines(string $ics): array
 {
     return explode("\r\n", str_replace("\r\n ", '', trim($ics)));
+}
+
+/**
+ * The calendar file the plan's admin page hands out for one shift, decoded
+ * from the download Livewire sends back.
+ */
+function shiftIcs(Plan $plan, Shift $shift, User $actor): string
+{
+    $component = Livewire::actingAs($actor)
+        ->test(Admin::class, ['plan' => $plan])
+        ->call('shiftCalendar', $shift->id)
+        ->assertFileDownloaded();
+
+    return base64_decode((string) data_get($component->effects, 'download.content'));
 }
 
 test('a shift can be fetched as a calendar entry', function (): void {
@@ -33,13 +51,13 @@ test('a shift can be fetched as a calendar entry', function (): void {
         'description' => '<p>Bitte pünktlich sein.</p>',
     ]);
 
-    $response = $this->get(route('plan.shift.calendar', ['plan' => $plan->view_id, 'shift' => $shift]));
+    $component = Livewire::actingAs($owner)
+        ->test(Admin::class, ['plan' => $plan])
+        ->call('shiftCalendar', $shift->id)
+        // named after the shift, so several downloads stay apart
+        ->assertFileDownloaded('bar-aufbau-schicht-1-treffpunkt.ics');
 
-    $response->assertOk();
-    expect($response->headers->get('content-type'))->toStartWith('text/calendar');
-    expect($response->headers->get('content-disposition'))->toContain('.ics');
-
-    $lines = icalLines($response->getContent());
+    $lines = icalLines(base64_decode((string) data_get($component->effects, 'download.content')));
 
     expect($lines)->toContain('BEGIN:VCALENDAR');
     expect($lines)->toContain('END:VCALENDAR');
@@ -61,8 +79,8 @@ test('a calendar entry keeps a stable identifier so re-importing updates it', fu
     $plan->update(['active' => true]);
     $shift = createShiftForPlan($plan);
 
-    $first = icalLines($this->get(route('plan.shift.calendar', ['plan' => $plan->view_id, 'shift' => $shift]))->getContent());
-    $second = icalLines($this->get(route('plan.shift.calendar', ['plan' => $plan->view_id, 'shift' => $shift]))->getContent());
+    $first = icalLines(shiftIcs($plan, $shift, $owner));
+    $second = icalLines(shiftIcs($plan, $shift, $owner));
 
     $uid = fn (array $lines): string => collect($lines)->first(fn (string $l): bool => str_starts_with($l, 'UID:')) ?? '';
 
@@ -73,19 +91,18 @@ test('a calendar entry keeps a stable identifier so re-importing updates it', fu
     expect($uid($second))->toBe($uid($first));
 });
 
-test('a shift of another plan is not served under that plan', function (): void {
+test('a shift of another plan is not handed out by this one', function (): void {
     $owner = User::factory()->create();
-    // both active, so a refusal can only come from the mismatch itself
     $plan = createOwnedPlan($owner);
-    $plan->update(['active' => true]);
     $other = createOwnedPlan($owner);
-    $other->update(['active' => true]);
     $shift = createShiftForPlan($other);
 
-    // the shift has to belong to the plan in the URL, or the view link of one
-    // plan would hand out the shifts of another
-    $this->get(route('plan.shift.calendar', ['plan' => $plan->view_id, 'shift' => $shift]))
-        ->assertForbidden();
+    // the id travels from the browser, so the page has to check that it names
+    // a shift it actually manages
+    Livewire::actingAs($owner)
+        ->test(Admin::class, ['plan' => $plan])
+        ->call('shiftCalendar', $shift->id)
+        ->assertStatus(404);
 });
 
 test('the confirmation mail carries the shift as a calendar attachment', function (): void {
@@ -127,7 +144,7 @@ test('a description keeps the breaks between its blocks', function (): void {
         'description' => '<p>Erster Absatz.</p><p>Zweiter Absatz.</p><ul><li>Ein Punkt</li></ul>',
     ]);
 
-    $lines = icalLines($this->get(route('plan.shift.calendar', ['plan' => $plan->view_id, 'shift' => $shift]))->getContent());
+    $lines = icalLines(shiftIcs($plan, $shift, $owner));
     $description = collect($lines)->first(fn (string $l): bool => str_starts_with($l, 'DESCRIPTION:')) ?? '';
 
     // strip_tags() drops a block boundary without a trace, so the paragraphs
@@ -150,7 +167,7 @@ test('every line of a calendar file stays within the format limits', function ()
         'description' => '<p>'.str_repeat('Beschreibungstext mit Umlauten äöü. ', 8).'</p>',
     ]);
 
-    $raw = $this->get(route('plan.shift.calendar', ['plan' => $plan->view_id, 'shift' => $shift]))->getContent();
+    $raw = shiftIcs($plan, $shift, $owner);
 
     // RFC 5545 folds at 75 octets - bytes, not characters - and the lines end
     // with CRLF. A fold may not cut a UTF-8 sequence in half either.
@@ -216,4 +233,88 @@ test('a misspelled timezone is refused rather than silently shifting every time'
     // What is asserted is that the message names the setting to correct.
     expect(fn () => app(ShiftCalendar::class)->build($shift, 'https://example.com'))
         ->toThrow(InvalidArgumentException::class, 'APP_TIMEZONE');
+});
+
+test('the my-shifts page hands out every own shift as one calendar file', function (): void {
+    $owner = User::factory()->create();
+    $plan = createOwnedPlan($owner);
+    $plan->update(['title' => 'Sommerfest', 'active' => true]);
+
+    $first = $plan->shifts()->create([
+        'title' => 'Bar Aufbau',
+        'group' => 0,
+        'start' => '2026-09-13 14:30:00',
+        'end' => '2026-09-13 17:30:00',
+        'team_size' => 2,
+    ]);
+    $second = $plan->shifts()->create([
+        'title' => 'Bar Abbau',
+        'group' => 0,
+        'start' => '2026-09-14 22:00:00',
+        'end' => '2026-09-15 01:00:00',
+        'team_size' => 2,
+    ]);
+
+    $helper = User::factory()->create(['email' => 'helfer@example.com']);
+    $first->subscriptions()->create(['name' => 'Helfer', 'email' => 'helfer@example.com']);
+    $second->subscriptions()->create(['name' => 'Helfer', 'email' => 'helfer@example.com']);
+    // someone else's shift, on the same plan
+    $second->subscriptions()->create(['name' => 'Andere', 'email' => 'andere@example.com']);
+
+    $component = Livewire::actingAs($helper)
+        ->test(Mine::class)
+        ->call('calendar')
+        ->assertFileDownloaded('my-shifts.ics');
+
+    $ics = base64_decode((string) data_get($component->effects, 'download.content'));
+    $lines = icalLines($ics);
+
+    // one appointment per shift, and only the ones this visitor signed up for
+    expect(collect($lines)->filter(fn (string $l): bool => $l === 'BEGIN:VEVENT'))->toHaveCount(2);
+    expect($lines)->toContain('SUMMARY:Bar Aufbau');
+    expect($lines)->toContain('SUMMARY:Bar Abbau');
+
+    // the name a calendar shows for the import
+    expect($lines)->toContain('X-WR-CALNAME:My Shifts');
+});
+
+test('a visitor without subscriptions is not offered the calendar file', function (): void {
+    $user = User::factory()->create(['email' => 'niemand@example.com']);
+
+    Livewire::actingAs($user)
+        ->test(Mine::class)
+        ->assertDontSee('calendar');
+});
+
+test('the my-shifts page hands out a single shift only to whoever signed up for it', function (): void {
+    $owner = User::factory()->create();
+    $plan = createOwnedPlan($owner);
+    $plan->update(['active' => true]);
+
+    $mine = $plan->shifts()->create([
+        'title' => 'Bar Aufbau',
+        'group' => 0,
+        'start' => '2026-09-13 14:30:00',
+        'end' => '2026-09-13 17:30:00',
+        'team_size' => 1,
+    ]);
+    $someoneElses = createShiftForPlan($plan);
+
+    $helper = User::factory()->create(['email' => 'helfer@example.com']);
+    $mine->subscriptions()->create(['name' => 'Helfer', 'email' => 'helfer@example.com']);
+
+    $component = Livewire::actingAs($helper)
+        ->test(Mine::class)
+        ->call('shiftCalendar', $mine->id)
+        ->assertFileDownloaded('bar-aufbau.ics');
+
+    expect(icalLines(base64_decode((string) data_get($component->effects, 'download.content'))))
+        ->toContain('SUMMARY:Bar Aufbau');
+
+    // the page lists only the visitor's own shifts, so an id from anywhere
+    // else is not theirs to download
+    Livewire::actingAs($helper)
+        ->test(Mine::class)
+        ->call('shiftCalendar', $someoneElses->id)
+        ->assertStatus(404);
 });

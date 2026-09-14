@@ -124,12 +124,6 @@ Route::get('/s/{plan:view_id}/shift/{shift}/details', App\Livewire\Shift\Show::c
     ->name('plan.shift.show');
 
 /**
- * The shift as a calendar entry (.ics).
- */
-Route::get('/s/{plan:view_id}/shift/{shift}/calendar', [ShiftController::class, 'calendar'])
-    ->name('plan.shift.calendar');
-
-/**
  * Subscribe to a shift
  */
 Route::get('/s/{plan:view_id}/shift/{shift}', App\Livewire\Subscription\Create::class)

@@ -1,5 +1,12 @@
 <div class="p-8 space-y-6">
-    <h1 class="text-2xl font-semibold">{{ __('subscription.mySubscriptions') }}</h1>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <h1 class="text-2xl font-semibold">{{ __('subscription.mySubscriptions') }}</h1>
+        @if($byPlan->isNotEmpty())
+            <flux:button size="sm" icon="calendar-days" wire:click="calendar">
+                {{ __('subscription.downloadCalendar') }}
+            </flux:button>
+        @endif
+    </div>
 
     @if($byPlan->isEmpty())
         <flux:callout variant="secondary" icon="info" heading="{{ __('subscription.noSubscriptions') }}" />
@@ -35,10 +42,7 @@
                                 <flux:dropdown>
                                     <flux:button size="sm" icon="ellipsis-vertical" />
                                     <flux:menu>
-                                        <flux:menu.item
-                                            icon="calendar-days"
-                                            href="{{ route('plan.shift.calendar', ['plan' => $plan->view_id, 'shift' => $shift]) }}"
-                                        >
+                                        <flux:menu.item icon="calendar-days" wire:click="shiftCalendar({{ $shift->id }})">
                                             {{ __('shift.addToCalendar') }}
                                         </flux:menu.item>
                                         @if ($shift->selfUnsubscribeAllowed())

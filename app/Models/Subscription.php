@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 
@@ -90,6 +91,28 @@ class Subscription extends Model
         return ['subscribed', '', '', '', '', '', '', '', $this->name, $this->email,
             $this->phone, $this->comment, $this->notification, $this->locale, $this->health_certificate_confirmed,
             $this->clothing_size];
+    }
+
+    /**
+     * The subscriptions of whoever holds this address, with shift and plan
+     * loaded, in the order the shifts start.
+     *
+     * Subscribing stays anonymous - a subscription carries no link to an
+     * account, so a matching email address is the only identity a logged-in
+     * visitor and their own entries share.
+     *
+     * @return Collection<int, Subscription>
+     */
+    public static function ofSubscriber(?string $email): Collection
+    {
+        if ($email === null || $email === '') {
+            return collect();
+        }
+
+        return static::where('email', $email)
+            ->with('shift.plan')
+            ->get()
+            ->sortBy('shift.start');
     }
 
     /**

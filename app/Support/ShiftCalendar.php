@@ -20,9 +20,26 @@ use Spatie\IcalendarGenerator\Properties\TextProperty;
  */
 class ShiftCalendar
 {
+    /**
+     * One shift as a calendar file of its own.
+     */
     public function build(Shift $shift, string $url): string
     {
-        return Calendar::create()
+        return $this->buildMany([$shift], fn (): string => $url);
+    }
+
+    /**
+     * Several shifts in a single file: a calendar reads it as one import and
+     * puts every shift in as its own appointment.
+     *
+     * @param  iterable<Shift>  $shifts
+     * @param  callable(Shift): string  $url  the page each shift belongs to,
+     *                                        which is also what its identifier
+     *                                        is derived from
+     */
+    public function buildMany(iterable $shifts, callable $url, ?string $name = null): string
+    {
+        $calendar = Calendar::create()
             // Identifies the product that wrote the file, and is what a
             // calendar shows when it names the source of an entry. RFC 5545
             // only recommends the //vendor//product//lang form, so the plain
@@ -30,20 +47,20 @@ class ShiftCalendar
             ->productIdentifier((string) config('app.name', 'HELGA'))
             // the times go in as UTC instants, which need no VTIMEZONE
             ->withoutAutoTimezoneComponents()
-            ->event(
-                Event::create()
-                    ->uniqueIdentifier($this->uid($url))
-                    ->name($shift->title)
-                    ->description($this->description($shift))
-                    ->url($url)
-                    ->startsAt($this->dateTime((string) $shift->start))
-                    ->endsAt($this->dateTime((string) $shift->end))
-            )
-            // Says the file publishes an appointment rather than inviting
+            // Says the file publishes appointments rather than inviting
             // anyone to one - without it a mail client may take the
             // attachment for an ordinary file instead of an entry to add.
-            ->appendProperty(TextProperty::create('METHOD', 'PUBLISH'))
-            ->get()
+            ->appendProperty(TextProperty::create('METHOD', 'PUBLISH'));
+
+        if ($name !== null) {
+            $calendar->name($name);
+        }
+
+        foreach ($shifts as $shift) {
+            $calendar->event($this->event($shift, $url($shift)));
+        }
+
+        return $calendar->get()
             // the builder joins the lines with CRLF but leaves the last one
             // bare, where RFC 5545 section 3.1 ends every content line with it
             ."\r\n";
@@ -54,7 +71,29 @@ class ShiftCalendar
      */
     public function filename(Shift $shift): string
     {
-        return Str::slug($shift->title ?: 'shift').'.ics';
+        return $this->filenameFor($shift->title ?: 'shift');
+    }
+
+    /**
+     * The filename a calendar file is offered under, from whatever titles it.
+     */
+    public function filenameFor(string $title): string
+    {
+        return (Str::slug($title) ?: 'calendar').'.ics';
+    }
+
+    /**
+     * One shift as an appointment.
+     */
+    private function event(Shift $shift, string $url): Event
+    {
+        return Event::create()
+            ->uniqueIdentifier($this->uid($url))
+            ->name($shift->title)
+            ->description($this->description($shift))
+            ->url($url)
+            ->startsAt($this->dateTime((string) $shift->start))
+            ->endsAt($this->dateTime((string) $shift->end));
     }
 
     /**

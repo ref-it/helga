@@ -5,7 +5,7 @@ use App\Models\User;
 use Illuminate\Support\Str;
 
 beforeEach(function (): void {
-    config(['services.oidc.admin_groups' => ['sr-admins']]);
+    config(['services.openidconnect.admin_groups' => ['sr-admins']]);
 });
 
 test('a member of an admin group can reach the manage page of a plan owned by someone else', function (): void {
@@ -48,7 +48,7 @@ test('a user not in an admin group cannot reach the manage page of a plan owned 
 });
 
 test('a user with no admin groups configured never gets admin rights', function (): void {
-    config(['services.oidc.admin_groups' => []]);
+    config(['services.openidconnect.admin_groups' => []]);
 
     $owner = User::factory()->create();
     $plan = createOwnedPlan($owner);

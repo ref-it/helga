@@ -11,8 +11,8 @@ use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Session;
 use Laravel\Socialite\Facades\Socialite;
 use Throwable;
 
@@ -37,7 +37,7 @@ class OidcController extends Controller
             }
         }
 
-        return Socialite::driver('oidc')->redirect();
+        return Socialite::driver('openidconnect')->redirect();
     }
 
     /**
@@ -46,11 +46,9 @@ class OidcController extends Controller
      */
     public function callback(Request $request)
     {
-        $driver = Socialite::driver('oidc');
-        $oidcUser = $driver->user();
+        $oidcUser = Socialite::driver('openidconnect')->user();
 
-        $groupsClaim = config('services.oidc.groups_claim');
-        $groups = $oidcUser->user[$groupsClaim] ?? [];
+        $groups = $oidcUser->groups ?? [];
 
         $user = User::updateOrCreate(
             ['sub' => $oidcUser->id],
@@ -101,9 +99,9 @@ class OidcController extends Controller
         // "actually log out" concerns separate
         $redirectUrl = $this->safeLogoutRedirectUrl($request);
 
-        $idToken = OidcSession::where('laravel_session_id', $request->session()->getId())->value('id_token');
-
-        OidcSession::where('laravel_session_id', $request->session()->getId())->delete();
+        $oidcSession = OidcSession::where('laravel_session_id', $request->session()->getId())->first();
+        $idToken = $oidcSession?->id_token;
+        $oidcSession?->delete();
 
         Auth::logout();
 
@@ -111,7 +109,7 @@ class OidcController extends Controller
         $request->session()->regenerateToken();
 
         try {
-            return Socialite::driver('oidc')->logout($idToken, $redirectUrl);
+            return Socialite::driver('openidconnect')->logout($idToken, $redirectUrl);
         } catch (Throwable $e) {
             Log::warning('Could not reach the OIDC provider for RP-initiated logout', ['error' => $e->getMessage()]);
 
@@ -174,7 +172,7 @@ class OidcController extends Controller
         }
 
         try {
-            $payload = Socialite::driver('oidc')->verifyLogoutToken($logoutToken);
+            $payload = Socialite::driver('openidconnect')->verifyLogoutToken($logoutToken);
         } catch (Throwable $e) {
             Log::warning('Rejected OIDC back-channel logout token', ['error' => $e->getMessage()]);
 
@@ -192,9 +190,7 @@ class OidcController extends Controller
         });
 
         foreach ($query->get() as $session) {
-            // this app uses the "file" session driver; adjust this if
-            // SESSION_DRIVER is ever changed to something else
-            File::delete(storage_path('framework/sessions/'.$session->laravel_session_id));
+            Session::getHandler()->destroy($session->laravel_session_id);
             $session->delete();
         }
 

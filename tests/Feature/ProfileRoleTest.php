@@ -3,7 +3,7 @@
 use App\Models\User;
 
 beforeEach(function (): void {
-    config(['services.oidc.admin_groups' => ['sr-admins']]);
+    config(['services.openidconnect.admin_groups' => ['sr-admins']]);
 });
 
 test('a global admin sees the administrator role in the profile dropdown', function (): void {

@@ -4,7 +4,7 @@ use App\Models\OidcSession;
 use App\Models\User;
 use Firebase\JWT\JWT;
 use GuzzleHttp\Psr7\Response;
-use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Session;
 
 function signLogoutToken(array $keyPair, array $overrides = []): string
 {
@@ -54,8 +54,8 @@ function generateTestRsaKeyPair(): array
 
 beforeEach(function (): void {
     config([
-        'services.oidc.base_url' => 'https://idp.test',
-        'services.oidc.client_id' => 'test-client',
+        'services.openidconnect.base_url' => 'https://idp.test',
+        'services.openidconnect.client_id' => 'test-client',
     ]);
 });
 
@@ -65,7 +65,7 @@ test('a valid logout token deletes the matching session', function (): void {
 
     $user = User::factory()->create(['sub' => 'oidc-subject']);
     $sessionId = 'test-session-'.uniqid();
-    File::put(storage_path('framework/sessions/'.$sessionId), 'dummy-session-data');
+    Session::getHandler()->write($sessionId, 'dummy-session-data');
 
     $oidcSession = OidcSession::create([
         'user_id' => $user->id,
@@ -80,7 +80,7 @@ test('a valid logout token deletes the matching session', function (): void {
         ->assertOk();
 
     expect(OidcSession::whereKey($oidcSession->id)->exists())->toBeFalse();
-    expect(File::exists(storage_path('framework/sessions/'.$sessionId)))->toBeFalse();
+    expect(Session::getHandler()->read($sessionId))->toBe('');
 });
 
 test('a logout token signed by an untrusted key is rejected', function (): void {
@@ -91,7 +91,7 @@ test('a logout token signed by an untrusted key is rejected', function (): void 
 
     $user = User::factory()->create(['sub' => 'oidc-subject']);
     $sessionId = 'test-session-'.uniqid();
-    File::put(storage_path('framework/sessions/'.$sessionId), 'dummy-session-data');
+    Session::getHandler()->write($sessionId, 'dummy-session-data');
 
     $oidcSession = OidcSession::create([
         'user_id' => $user->id,
@@ -106,9 +106,7 @@ test('a logout token signed by an untrusted key is rejected', function (): void 
         ->assertStatus(400);
 
     expect(OidcSession::whereKey($oidcSession->id)->exists())->toBeTrue();
-    expect(File::exists(storage_path('framework/sessions/'.$sessionId)))->toBeTrue();
-
-    File::delete(storage_path('framework/sessions/'.$sessionId));
+    expect(Session::getHandler()->read($sessionId))->toBe('dummy-session-data');
 });
 
 test('a logout token missing the backchannel-logout event is rejected', function (): void {

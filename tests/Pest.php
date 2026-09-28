@@ -75,7 +75,7 @@ function createShiftForPlan(Plan $plan): Shift
 }
 
 /**
- * Feeds the given Guzzle responses to the "oidc" Socialite driver, in order -
+ * Feeds the given Guzzle responses to the OIDC Socialite driver, in order -
  * the OIDC provider package talks to the IdP over a raw Guzzle client, not
  * Laravel's Http facade, so Http::fake() can't intercept it.
  *
@@ -85,7 +85,7 @@ function fakeOidcHttp(array $responses): void
 {
     $handlerStack = HandlerStack::create(new MockHandler($responses));
 
-    Socialite::driver('oidc')->setHttpClient(new Client(['handler' => $handlerStack]));
+    Socialite::driver('openidconnect')->setHttpClient(new Client(['handler' => $handlerStack]));
 }
 
 function createPlanWithShift(): Shift

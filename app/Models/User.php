@@ -55,6 +55,6 @@ class User extends Authenticatable
      */
     public function isGlobalAdmin(): bool
     {
-        return count(array_intersect($this->groups ?? [], config('services.oidc.admin_groups'))) > 0;
+        return count(array_intersect($this->groups ?? [], config('services.openidconnect.admin_groups'))) > 0;
     }
 }

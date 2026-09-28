@@ -5,10 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Support\DescriptionSanitizer;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
-use SocialiteProviders\Manager\SocialiteWasCalled;
-use SocialiteProviders\OpenIDConnect\Provider as OidcProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -37,15 +34,5 @@ class AppServiceProvider extends ServiceProvider
         if (! defined('IMAGETYPE_SWC')) {
             define('IMAGETYPE_SWC', 13);
         }
-    }
-
-    /**
-     * Bootstrap any application services.
-     */
-    public function boot(): void
-    {
-        Event::listen(function (SocialiteWasCalled $event): void {
-            $event->extendSocialite('oidc', OidcProvider::class);
-        });
     }
 }

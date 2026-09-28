@@ -16,12 +16,13 @@ function fakeOidcLogin(array $groups, string $sub = 'sub-123', ?string $phoneNum
             'email' => 'test-'.$sub.'@example.com',
             'given_name' => 'Test',
             'family_name' => 'User',
+            'groups' => $groups,
         ])
         ->setAccessTokenResponseBody(['id_token' => 'fake-id-token']);
 
     $provider = Mockery::mock(Provider::class);
     $provider->shouldReceive('user')->andReturn($socialiteUser);
-    Socialite::shouldReceive('driver')->with('oidc')->andReturn($provider);
+    Socialite::shouldReceive('driver')->with('openidconnect')->andReturn($provider);
 }
 
 test('logging in stores every group from the ID token in the central registry', function (): void {

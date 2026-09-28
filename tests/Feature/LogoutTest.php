@@ -5,8 +5,8 @@ use GuzzleHttp\Psr7\Response;
 
 beforeEach(function (): void {
     config([
-        'services.oidc.base_url' => 'https://idp.test',
-        'services.oidc.client_id' => 'test-client',
+        'services.openidconnect.base_url' => 'https://idp.test',
+        'services.openidconnect.client_id' => 'test-client',
     ]);
 });
 

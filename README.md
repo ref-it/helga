@@ -58,13 +58,12 @@ OIDC_CLIENT_ID=
 OIDC_CLIENT_SECRET=
 OIDC_REDIRECT_URI="${APP_URL}/auth/callback"
 OIDC_SCOPES="openid email profile phone groups"
-# the claim that carries the user's group memberships, used for plan
-# sharing and to determine global admins below
-OIDC_GROUPS_CLAIM=groups
-# comma-separated group names (from OIDC_GROUPS_CLAIM) that get admin
-# rights on every plan, e.g. OIDC_ADMIN_GROUPS=admin,staff
+# space-separated group names from the provider's "groups" claim that get
+# admin rights on every plan, e.g. OIDC_ADMIN_GROUPS="admin staff"
 OIDC_ADMIN_GROUPS=
 ```
+
+The top left of the header shows `APP_NAME` as text. To use a logo instead, place both `logo.svg` (shown on large screens) and `logo-small.svg` (shown on small screens) in `public/` - if either file is missing, the name is used.
 
 Two optional feature flags control scheduled background behavior - both default to `false` and only affect user-facing messaging/opt-ins, not the underlying commands themselves (see [Commands](#commands)):
 

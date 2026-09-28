@@ -32,7 +32,7 @@
                 <flux:badge size="sm">{{__("plan.public")}}</flux:badge>
                 <flux:badge size="sm">{{__("shift.optional")}}</flux:badge>
             </flux:label>
-            <flux:input type="tel" wire:model="contact_phone" />
+            <flux:phone wire:model="contact_phone" country="DE" />
             <flux:error name="contact_phone" />
         </flux:field>
         <flux:field variant="inline" class="col-span-full">

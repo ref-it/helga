@@ -24,7 +24,7 @@
                 {{__("subscription.phone")}}
                 <flux:badge size="sm">{{__("shift.optional")}}</flux:badge>
             </flux:label>
-            <flux:input type="tel" wire:model="phone" />
+            <flux:phone wire:model="phone" country="DE" />
             <flux:error name="phone" />
         </flux:field>
         <flux:field>

@@ -4,7 +4,7 @@ use App\Models\Group;
 use App\Models\User;
 use Laravel\Socialite\Contracts\Provider;
 use Laravel\Socialite\Facades\Socialite;
-use Laravel\Socialite\Two\User as SocialiteUser;
+use SocialiteProviders\Manager\OAuth2\User as SocialiteUser;
 
 function fakeOidcLogin(array $groups, string $sub = 'sub-123', ?string $phoneNumber = null): void
 {
@@ -16,11 +16,11 @@ function fakeOidcLogin(array $groups, string $sub = 'sub-123', ?string $phoneNum
             'email' => 'test-'.$sub.'@example.com',
             'given_name' => 'Test',
             'family_name' => 'User',
-        ]);
+        ])
+        ->setAccessTokenResponseBody(['id_token' => 'fake-id-token']);
 
     $provider = Mockery::mock(Provider::class);
     $provider->shouldReceive('user')->andReturn($socialiteUser);
-    $provider->shouldReceive('getIdToken')->andReturn('fake-id-token');
     Socialite::shouldReceive('driver')->with('oidc')->andReturn($provider);
 }
 

@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Support\DescriptionSanitizer;
-use App\Support\OidcProvider;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use SocialiteProviders\Manager\SocialiteWasCalled;
+use SocialiteProviders\OpenIDConnect\Provider as OidcProvider;
 
 class AppServiceProvider extends ServiceProvider
 {

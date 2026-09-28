@@ -7,15 +7,11 @@ use App\Models\Group;
 use App\Models\OidcSession;
 use App\Models\Plan;
 use App\Models\User;
-use Firebase\JWT\JWK;
-use Firebase\JWT\JWT;
 use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Facades\Socialite;
 use Throwable;
@@ -86,7 +82,7 @@ class OidcController extends Controller
             'sub' => $user->sub,
             'sid' => $oidcUser->user['sid'] ?? null,
             'laravel_session_id' => $request->session()->getId(),
-            'id_token' => $driver->getIdToken(),
+            'id_token' => $oidcUser->accessTokenResponseBody['id_token'] ?? null,
         ]);
 
         return redirect()->intended(route('plan.mine'));
@@ -114,20 +110,13 @@ class OidcController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        $endSessionEndpoint = $this->fetchEndSessionEndpoint();
+        try {
+            return Socialite::driver('oidc')->logout($idToken, $redirectUrl);
+        } catch (Throwable $e) {
+            Log::warning('Could not reach the OIDC provider for RP-initiated logout', ['error' => $e->getMessage()]);
 
-        if ($endSessionEndpoint) {
-            return redirect()->away($endSessionEndpoint.'?'.http_build_query(array_filter([
-                'client_id' => config('services.oidc.client_id'),
-                'post_logout_redirect_uri' => $redirectUrl,
-                // most providers won't trust post_logout_redirect_uri without
-                // this - without it they show their own logout/login page
-                // instead of sending the visitor back here
-                'id_token_hint' => $idToken,
-            ])));
+            return redirect($redirectUrl);
         }
-
-        return redirect($redirectUrl);
     }
 
     /**
@@ -185,29 +174,20 @@ class OidcController extends Controller
         }
 
         try {
-            $payload = JWT::decode($logoutToken, JWK::parseKeySet($this->fetchJwks()));
+            $payload = Socialite::driver('oidc')->verifyLogoutToken($logoutToken);
         } catch (Throwable $e) {
             Log::warning('Rejected OIDC back-channel logout token', ['error' => $e->getMessage()]);
 
             return response('', 400);
         }
 
-        if (! $this->isValidLogoutToken($payload)) {
-            return response('', 400);
-        }
-
-        // jti replay protection: only ever accept a given token once
-        if (isset($payload->jti) && ! Cache::add('oidc_logout_jti:'.$payload->jti, true, now()->addMinutes(5))) {
-            return response('', 400);
-        }
-
         $query = OidcSession::query();
         $query->where(function ($query) use ($payload): void {
-            if (isset($payload->sub)) {
-                $query->orWhere('sub', $payload->sub);
+            if (isset($payload['sub'])) {
+                $query->orWhere('sub', $payload['sub']);
             }
-            if (isset($payload->sid)) {
-                $query->orWhere('sid', $payload->sid);
+            if (isset($payload['sid'])) {
+                $query->orWhere('sid', $payload['sid']);
             }
         });
 
@@ -219,74 +199,5 @@ class OidcController extends Controller
         }
 
         return response('', 200);
-    }
-
-    /**
-     * Validate the claims of a decoded back-channel logout token per spec.
-     */
-    private function isValidLogoutToken(\stdClass $payload): bool
-    {
-        $issuer = rtrim((string) config('services.oidc.base_url'), '/');
-        $clientId = config('services.oidc.client_id');
-
-        if (($payload->iss ?? null) !== $issuer) {
-            return false;
-        }
-
-        $audience = $payload->aud ?? null;
-        $audienceMatches = is_array($audience)
-            ? in_array($clientId, $audience, true)
-            : $audience === $clientId;
-
-        if (! $audienceMatches) {
-            return false;
-        }
-
-        if (isset($payload->nonce)) {
-            return false;
-        }
-
-        if (! isset($payload->sub) && ! isset($payload->sid)) {
-            return false;
-        }
-
-        return isset($payload->events)
-            && property_exists($payload->events, 'http://schemas.openid.net/event/backchannel-logout');
-    }
-
-    /**
-     * Fetch (and cache) the OIDC provider's JSON Web Key Set.
-     */
-    private function fetchJwks(): array
-    {
-        return Cache::remember('oidc_jwks', now()->addHour(), fn () => Http::get($this->discoveryDocument()['jwks_uri'])->throw()->json());
-    }
-
-    /**
-     * Fetch (and cache) the OIDC provider's end-session endpoint, or null if
-     * discovery fails or the provider doesn't advertise one - logout then
-     * just falls back to ending the local session only.
-     */
-    private function fetchEndSessionEndpoint(): ?string
-    {
-        try {
-            return $this->discoveryDocument()['end_session_endpoint'] ?? null;
-        } catch (Throwable $e) {
-            Log::warning('Could not reach the OIDC provider for RP-initiated logout', ['error' => $e->getMessage()]);
-
-            return null;
-        }
-    }
-
-    /**
-     * Fetch (and cache) the OIDC provider's discovery document.
-     */
-    private function discoveryDocument(): array
-    {
-        return Cache::remember('oidc_discovery_document', now()->addHour(), function () {
-            $baseUrl = rtrim((string) config('services.oidc.base_url'), '/');
-
-            return Http::get($baseUrl.'/.well-known/openid-configuration')->throw()->json();
-        });
     }
 }

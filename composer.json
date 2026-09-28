@@ -9,7 +9,6 @@
         "ext-sqlite3": "*",
         "doctrine/dbal": "^3.1",
         "guzzlehttp/guzzle": "^7.0.1",
-        "kovah/laravel-socialite-oidc": "^0.8.0",
         "laravel/framework": "^13.0",
         "laravel/sanctum": "^4.0",
         "laravel/socialite": "^5.29",
@@ -19,6 +18,7 @@
         "livewire/livewire": "^4.0",
         "mews/captcha": "^3.4",
         "mews/purifier": "^3.4",
+        "socialiteproviders/openidconnect": "^1.0.1",
         "spatie/icalendar-generator": "^3.3",
         "tecnickcom/tc-lib-pdf": "^8.73"
     },

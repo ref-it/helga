@@ -3,7 +3,12 @@
 use App\Models\Plan;
 use App\Models\Shift;
 use App\Models\User;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Socialite\Facades\Socialite;
 use Tests\TestCase;
 
 /*
@@ -67,6 +72,20 @@ function createShiftForPlan(Plan $plan): Shift
         'end' => now()->addHours(2),
         'team_size' => 2,
     ]);
+}
+
+/**
+ * Feeds the given Guzzle responses to the "oidc" Socialite driver, in order -
+ * the OIDC provider package talks to the IdP over a raw Guzzle client, not
+ * Laravel's Http facade, so Http::fake() can't intercept it.
+ *
+ * @param  Response[]  $responses
+ */
+function fakeOidcHttp(array $responses): void
+{
+    $handlerStack = HandlerStack::create(new MockHandler($responses));
+
+    Socialite::driver('oidc')->setHttpClient(new Client(['handler' => $handlerStack]));
 }
 
 function createPlanWithShift(): Shift

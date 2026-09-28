@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\User;
-use Illuminate\Support\Facades\Http;
+use GuzzleHttp\Psr7\Response;
 
 beforeEach(function (): void {
     config([
@@ -11,10 +11,10 @@ beforeEach(function (): void {
 });
 
 test('logging out ends the local session and redirects to the IdP end-session endpoint', function (): void {
-    Http::fake([
-        'https://idp.test/.well-known/openid-configuration' => Http::response([
+    fakeOidcHttp([
+        new Response(200, [], json_encode([
             'end_session_endpoint' => 'https://idp.test/logout',
-        ]),
+        ])),
     ]);
 
     $user = User::factory()->create(['sub' => 'oidc-subject']);
@@ -31,9 +31,7 @@ test('logging out ends the local session and redirects to the IdP end-session en
 });
 
 test('logging out falls back to a local-only logout if the IdP is unreachable', function (): void {
-    Http::fake([
-        'https://idp.test/.well-known/openid-configuration' => Http::response([], 500),
-    ]);
+    fakeOidcHttp([new Response(500)]);
 
     $user = User::factory()->create();
 
@@ -44,9 +42,7 @@ test('logging out falls back to a local-only logout if the IdP is unreachable', 
 });
 
 test('logging out falls back to a local-only logout if the provider has no end-session endpoint', function (): void {
-    Http::fake([
-        'https://idp.test/.well-known/openid-configuration' => Http::response([]),
-    ]);
+    fakeOidcHttp([new Response(200, [], json_encode([]))]);
 
     $user = User::factory()->create();
 
@@ -57,10 +53,10 @@ test('logging out falls back to a local-only logout if the provider has no end-s
 });
 
 test('logging out from an active plan\'s public page redirects back there', function (): void {
-    Http::fake([
-        'https://idp.test/.well-known/openid-configuration' => Http::response([
+    fakeOidcHttp([
+        new Response(200, [], json_encode([
             'end_session_endpoint' => 'https://idp.test/logout',
-        ]),
+        ])),
     ]);
 
     $owner = User::factory()->create();
@@ -77,10 +73,10 @@ test('logging out from an active plan\'s public page redirects back there', func
 });
 
 test('logging out from an inactive plan\'s public page falls back to the home page', function (): void {
-    Http::fake([
-        'https://idp.test/.well-known/openid-configuration' => Http::response([
+    fakeOidcHttp([
+        new Response(200, [], json_encode([
             'end_session_endpoint' => 'https://idp.test/logout',
-        ]),
+        ])),
     ]);
 
     $owner = User::factory()->create();
@@ -96,10 +92,10 @@ test('logging out from an inactive plan\'s public page falls back to the home pa
 });
 
 test('logging out from a static informational page redirects back there', function (): void {
-    Http::fake([
-        'https://idp.test/.well-known/openid-configuration' => Http::response([
+    fakeOidcHttp([
+        new Response(200, [], json_encode([
             'end_session_endpoint' => 'https://idp.test/logout',
-        ]),
+        ])),
     ]);
 
     $user = User::factory()->create();
@@ -113,10 +109,10 @@ test('logging out from a static informational page redirects back there', functi
 });
 
 test('logging out from an admin page falls back to the home page', function (): void {
-    Http::fake([
-        'https://idp.test/.well-known/openid-configuration' => Http::response([
+    fakeOidcHttp([
+        new Response(200, [], json_encode([
             'end_session_endpoint' => 'https://idp.test/logout',
-        ]),
+        ])),
     ]);
 
     $owner = User::factory()->create();

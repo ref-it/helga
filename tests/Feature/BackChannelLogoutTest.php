@@ -3,8 +3,8 @@
 use App\Models\OidcSession;
 use App\Models\User;
 use Firebase\JWT\JWT;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Http;
 
 function signLogoutToken(array $keyPair, array $overrides = []): string
 {
@@ -12,6 +12,7 @@ function signLogoutToken(array $keyPair, array $overrides = []): string
         'iss' => 'https://idp.test',
         'aud' => 'test-client',
         'iat' => time(),
+        'exp' => time() + 300,
         'jti' => bin2hex(random_bytes(8)),
         'sub' => 'oidc-subject',
         'events' => ['http://schemas.openid.net/event/backchannel-logout' => new stdClass],
@@ -24,11 +25,12 @@ function fakeOidcDiscovery(array $keyPair): void
 {
     $details = openssl_pkey_get_details($keyPair['resource']);
 
-    Http::fake([
-        'https://idp.test/.well-known/openid-configuration' => Http::response([
+    fakeOidcHttp([
+        new Response(200, [], json_encode([
+            'issuer' => 'https://idp.test',
             'jwks_uri' => 'https://idp.test/jwks',
-        ]),
-        'https://idp.test/jwks' => Http::response([
+        ])),
+        new Response(200, [], json_encode([
             'keys' => [[
                 'kty' => 'RSA',
                 'kid' => 'test-key',
@@ -37,7 +39,7 @@ function fakeOidcDiscovery(array $keyPair): void
                 'n' => rtrim(strtr(base64_encode($details['rsa']['n']), '+/', '-_'), '='),
                 'e' => rtrim(strtr(base64_encode($details['rsa']['e']), '+/', '-_'), '='),
             ]],
-        ]),
+        ])),
     ]);
 }
 

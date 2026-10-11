@@ -105,6 +105,8 @@ test('a plan without a logo does not render an image on the show page', function
 
     $response = $this->get(route('plan.show', $plan));
 
+    // the plan's logo carries the plan title as alt text - the site brand
+    // image in the sidebar (an instance's own public/logo.svg) does not count
     $response->assertOk();
-    expect($response->getContent())->not->toContain('<img');
+    expect($response->getContent())->not->toContain('alt="'.e($plan->title).'"');
 });

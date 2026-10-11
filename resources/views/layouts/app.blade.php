@@ -10,6 +10,7 @@
         @else
             <title>{{ config('app.name', 'Shift Planner') }}</title>
         @endif
+        @include('partials.favicon')
         @yield('meta')
         @vite('resources/css/app.css')
         @vite('resources/js/app.js')

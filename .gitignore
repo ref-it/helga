@@ -1,6 +1,11 @@
 /node_modules
+/public/apple-touch-icon.png
 /public/build
+/public/favicon.png
+/public/favicon.svg
 /public/hot
+/public/logo-small.svg
+/public/logo.svg
 /public/storage
 /storage/*.key
 /storage/debugbar/

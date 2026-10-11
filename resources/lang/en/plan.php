@@ -79,5 +79,6 @@ return [
     'confirmDelete' => 'Are you sure you want to permanently delete this plan? All shifts and subscriptions will be lost.',
     'selectShift' => 'Select shift :shift',
     'shiftsSelected' => '{1} 1 shift selected|[2,*] :count shifts selected',
+    'showSubscribers' => 'Show subscribed people',
     'clearSelection' => 'Clear selection',
 ];

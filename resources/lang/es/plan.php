@@ -70,5 +70,6 @@ return [
     'confirmDelete' => '¿Seguro que quieres eliminar este plan de turnos de forma permanente? Se perderán todos los turnos e inscripciones.',
     'selectShift' => 'Seleccionar el turno :shift',
     'shiftsSelected' => '{1} 1 turno seleccionado|[2,*] :count turnos seleccionados',
+    'showSubscribers' => 'Mostrar personas inscritas',
     'clearSelection' => 'Borrar la selección',
 ];

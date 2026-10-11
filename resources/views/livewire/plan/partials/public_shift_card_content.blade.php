@@ -25,15 +25,8 @@
         'total' => $shift->team_size,
         'filled' => $filledSlots,
         'title' => __('plan.slotsOccupied', ['filled' => $filledSlots, 'total' => $shift->team_size]),
+        'names' => $namesVisible ? $shift->subscriptions->pluck('name')->all() : [],
     ])
-
-    @if($namesVisible && $shift->subscriptions->count() > 0)
-        <div class="flex flex-col text-sm">
-            @foreach($shift->subscriptions as $subscription)
-                <span>{{ $subscription->name }}</span>
-            @endforeach
-        </div>
-    @endif
 
     @if($shift->isSubscribedBy(auth()->user()) && $shift->selfUnsubscribeAllowed())
         <div class="relative z-10 flex flex-wrap gap-2" x-on:click.stop="">

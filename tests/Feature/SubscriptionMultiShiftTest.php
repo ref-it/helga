@@ -364,3 +364,25 @@ test('a shift that ended while the form was open is skipped on save', function (
     expect($open->subscriptions()->count())->toBe(1)
         ->and($over->subscriptions()->count())->toBe(0);
 });
+
+test('subscriber names sit behind a button instead of being listed in the card', function (): void {
+    $shift = createPlanWithShift();
+    $shift->plan->update(['show_subscriber_names' => true]);
+    $shift->subscriptions()->create(['name' => 'Jane Doe', 'email' => 'jane@example.com']);
+
+    $this->actingAs(User::factory()->create())->get(route('plan.show', $shift->plan))
+        ->assertOk()
+        ->assertSee('aria-label="'.__('plan.showSubscribers').'"', false)
+        ->assertSee('Jane Doe');
+});
+
+test('guests get neither subscriber names nor the button for them', function (): void {
+    $shift = createPlanWithShift();
+    $shift->plan->update(['show_subscriber_names' => true]);
+    $shift->subscriptions()->create(['name' => 'Jane Doe', 'email' => 'jane@example.com']);
+
+    $this->get(route('plan.show', $shift->plan))
+        ->assertOk()
+        ->assertDontSee('aria-label="'.__('plan.showSubscribers').'"', false)
+        ->assertDontSee('Jane Doe');
+});

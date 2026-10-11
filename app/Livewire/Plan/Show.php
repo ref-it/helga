@@ -44,7 +44,7 @@ class Show extends Component
     public function subscribeToSelected(): mixed
     {
         $shiftIds = $this->openShiftIds()
-            ->intersect(array_map('intval', $this->selectedShifts))
+            ->intersect(array_map(intval(...), $this->selectedShifts))
             ->values();
 
         if ($shiftIds->isEmpty()) {

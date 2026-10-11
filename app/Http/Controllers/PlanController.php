@@ -284,7 +284,7 @@ class PlanController extends Controller
      */
     public function cron(Request $request)
     {
-        $cronKey = $request->get('key', '');
+        $cronKey = $request->input('key', '');
         $confKey = env('API_KEY', false);
         if (isset($confKey) && $cronKey === $confKey) {
             Artisan::call('schichtplan:cleanup');

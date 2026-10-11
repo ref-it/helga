@@ -24,7 +24,7 @@ class SubscriptionController extends Controller
     {
         $this->authorize('show', $plan);
 
-        $ids = array_map('intval', (array) request()->query('subscriptions', []));
+        $ids = array_map(intval(...), (array) request()->query('subscriptions', []));
 
         $subscriptions = Subscription::whereIn('id', $ids)
             ->whereHas('shift', fn (Builder $query) => $query->where('plan_id', $plan->id))

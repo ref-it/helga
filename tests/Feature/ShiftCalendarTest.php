@@ -200,7 +200,7 @@ test('an empty timezone setting is read as UTC, as the framework reads it', func
     config(['app.timezone' => '']);
 
     $shift = shiftAt(User::factory()->create(), '2026-09-13 14:30:00', '2026-09-13 17:30:00');
-    $lines = icalLines(app(ShiftCalendar::class)->build($shift, 'https://example.com'));
+    $lines = icalLines(resolve(ShiftCalendar::class)->build($shift, 'https://example.com'));
 
     expect($lines)->toContain('DTSTART:20260913T143000Z');
     expect($lines)->toContain('DTEND:20260913T173000Z');
@@ -209,7 +209,7 @@ test('an empty timezone setting is read as UTC, as the framework reads it', func
 test('the application timezone turns the wall-clock times into an absolute instant', function (): void {
     config(['app.timezone' => 'Europe/Berlin']);
     $owner = User::factory()->create();
-    $calendar = app(ShiftCalendar::class);
+    $calendar = resolve(ShiftCalendar::class);
 
     // September is CEST, two hours ahead of UTC
     $summer = icalLines($calendar->build(shiftAt($owner, '2026-09-13 14:30:00', '2026-09-13 17:30:00'), 'https://example.com'));
@@ -231,7 +231,7 @@ test('a misspelled timezone is refused rather than silently shifting every time'
     // Carbon throws for an unknown zone too, and its exception extends
     // InvalidArgumentException - so the type alone would pass either way.
     // What is asserted is that the message names the setting to correct.
-    expect(fn () => app(ShiftCalendar::class)->build($shift, 'https://example.com'))
+    expect(fn () => resolve(ShiftCalendar::class)->build($shift, 'https://example.com'))
         ->toThrow(InvalidArgumentException::class, 'APP_TIMEZONE');
 });
 

@@ -42,7 +42,7 @@ class PlanPolicy
      */
     public function show(?User $user, Plan $plan): bool
     {
-        return $plan->active || ($user && $plan->isViewableBy($user));
+        return $plan->active || ($user instanceof User && $plan->isViewableBy($user));
     }
 
     /**

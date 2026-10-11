@@ -28,9 +28,7 @@ class NotifySubscribers extends Command
             ->where('notified', '<>', '1')->get();
         foreach ($toNotify as $shift) {
             $planId = $shift->plan->id;
-            if (! isset($done[$planId])) {
-                $done[$planId] = [];
-            }
+            $done[$planId] ??= [];
             if (Date::parse($shift->start) > Date::now()) {
                 foreach ($shift->subscriptions as $sub) {
                     // don't email an address nobody has confirmed ownership of

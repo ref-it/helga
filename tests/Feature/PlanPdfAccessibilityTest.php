@@ -73,7 +73,7 @@ function tableRows(string $pdf): array
         $elements[(int) $match[1]] = [
             'tag' => $match[2],
             'page' => (int) $match[3],
-            'kids' => array_map('intval', preg_split('/\D+/', $match[4], -1, PREG_SPLIT_NO_EMPTY) ?: []),
+            'kids' => array_map(intval(...), preg_split('/\D+/', $match[4], -1, PREG_SPLIT_NO_EMPTY) ?: []),
         ];
     }
 

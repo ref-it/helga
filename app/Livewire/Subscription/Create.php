@@ -288,7 +288,7 @@ class Create extends Component
      */
     private function shiftIdsFromRequest(Plan $plan): array
     {
-        $requested = array_map('intval', (array) request()->query('shifts', []));
+        $requested = array_map(intval(...), (array) request()->query('shifts', []));
 
         return $plan->shifts()
             ->with('subscriptions')

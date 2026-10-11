@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\PlanController;
 use App\Livewire\Plan\Show;
 use App\Livewire\Subscription\Create;
 use App\Models\Shift;
@@ -401,7 +402,7 @@ test('a shift over several days wraps its dates only when space is short, not by
     $shift = createPlanWithShift();
     $shift->update(['start' => now()->addDay()->setTime(17, 0), 'end' => now()->addDays(6)->setTime(23, 59)]);
 
-    $html = \App\Http\Controllers\PlanController::buildDateHtml($shift->fresh()->start, $shift->fresh()->end);
+    $html = PlanController::buildDateHtml($shift->fresh()->start, $shift->fresh()->end);
 
     expect($html)->not->toContain('<br>')
         ->and(substr_count($html, 'whitespace-nowrap'))->toBe(2);
@@ -411,7 +412,7 @@ test('a shift within one day keeps a single line of text', function (): void {
     $shift = createPlanWithShift();
     $shift->update(['start' => now()->addDay()->setTime(10, 0), 'end' => now()->addDay()->setTime(12, 0)]);
 
-    $html = \App\Http\Controllers\PlanController::buildDateHtml($shift->fresh()->start, $shift->fresh()->end);
+    $html = PlanController::buildDateHtml($shift->fresh()->start, $shift->fresh()->end);
 
     expect($html)->not->toContain('<')->and($html)->toContain('10:00')->and($html)->toContain('12:00');
 });

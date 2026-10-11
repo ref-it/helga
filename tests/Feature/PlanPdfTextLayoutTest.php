@@ -315,7 +315,7 @@ test('a block quote gets one unbroken bar beside it', function (): void {
     // every vertical segment, by the x it sits at
     $vertical = [];
     foreach ($matches as $match) {
-        [, $x1, $y1, $x2, $y2] = array_map('floatval', $match);
+        [, $x1, $y1, $x2, $y2] = array_map(floatval(...), $match);
         if (abs($x1 - $x2) > 0.01) {
             continue;
         }

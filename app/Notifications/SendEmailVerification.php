@@ -99,7 +99,7 @@ class SendEmailVerification extends Notification
             return;
         }
 
-        $calendar = app(ShiftCalendar::class);
+        $calendar = resolve(ShiftCalendar::class);
 
         $body = $calendar->buildMany(
             $shifts,

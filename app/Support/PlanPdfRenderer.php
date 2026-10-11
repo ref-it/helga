@@ -56,7 +56,7 @@ final class PlanPdfRenderer
      * from its content: a shift title has a rule under it and needs one unit,
      * a category has its rule beside it and needs the full block gap.
      */
-    private const SPACE = 1.75;
+    private const float SPACE = 1.75;
 
     /**
      * The page frame, all four of it from DIN 5008: 25mm left (the norm's
@@ -74,26 +74,26 @@ final class PlanPdfRenderer
      * page and have to stay commensurable. The frame and the rhythm inside it
      * are two different jobs.
      */
-    private const MARGIN_LEFT = 25.0;
+    private const float MARGIN_LEFT = 25.0;
 
-    private const MARGIN_RIGHT = 20.0;
+    private const float MARGIN_RIGHT = 20.0;
 
-    private const MARGIN_TOP = 20.0;
+    private const float MARGIN_TOP = 20.0;
 
     /**
      * Also what leaves the page number strip room below the text area with
      * air on both sides of it - at 15mm the footer had to sit 7mm from the
      * paper edge, which is past where many printers stop printing.
      */
-    private const MARGIN_BOTTOM = 25.0;
+    private const float MARGIN_BOTTOM = 25.0;
 
     /** Distance from the bottom paper edge to the bottom of the page number. */
-    private const FOOTER_EDGE_GAP = 10.0;
+    private const float FOOTER_EDGE_GAP = 10.0;
 
     /** Generous row height so empty slots can be filled in by hand after printing. */
     private const ROW_MIN_HEIGHT = 6 * self::SPACE;
 
-    private const CELL_PADDING = 2.0;
+    private const float CELL_PADDING = 2.0;
 
     /**
      * Font size of the helper table, in pt - the column labels and the body
@@ -101,7 +101,7 @@ final class PlanPdfRenderer
      * head above it, and it is the single place to change the table's scale:
      * the head is the reference the cells are meant to match.
      */
-    private const TABLE_FONT_SIZE = 10.0;
+    private const float TABLE_FONT_SIZE = 10.0;
 
     /**
      * Font size of a helper's e-mail address and phone number, in pt. Smaller
@@ -109,7 +109,7 @@ final class PlanPdfRenderer
      * but not so small that a printed contact is hard to read out over the
      * phone, which is the one thing these two lines exist for.
      */
-    private const CONTACT_FONT_SIZE = 9.0;
+    private const float CONTACT_FONT_SIZE = 9.0;
 
     /**
      * Air above each of those two lines, in mm. Without it the three lines
@@ -117,7 +117,7 @@ final class PlanPdfRenderer
      * the name reads as the row's heading and the contacts as its detail.
      * Applied to measuring and drawing alike, like LINE_SPACING.
      */
-    private const CONTACT_LINE_GAP = 1.0;
+    private const float CONTACT_LINE_GAP = 1.0;
 
     /**
      * Air on each side of the dot between two contact values, in mm. Set as a
@@ -140,7 +140,7 @@ final class PlanPdfRenderer
      */
     private const CONTACT_BOX_PADDING = 2 * self::SPACE;
 
-    private const CONTACT_ICON_SIZE = 3.4;
+    private const float CONTACT_ICON_SIZE = 3.4;
 
     private const CONTACT_ICON_GAP = 0.75 * self::SPACE;
 
@@ -151,7 +151,7 @@ final class PlanPdfRenderer
      * the shift titles, because it names a block of the header and not a
      * section of the plan.
      */
-    private const CONTACT_LABEL_GAP = self::SPACE;
+    private const float CONTACT_LABEL_GAP = self::SPACE;
 
     /**
      * Extra air above the contact box, in mm, on top of the paragraph gap the
@@ -163,7 +163,7 @@ final class PlanPdfRenderer
      */
     private const CONTACT_BOX_GAP = self::SHIFT_GAP - self::PARAGRAPH_GAP;
 
-    private const HEADING_SIZE_CONTACT = 10.0;
+    private const float HEADING_SIZE_CONTACT = 10.0;
 
     /**
      * Padding below the column header labels, in mm. There is deliberately
@@ -171,26 +171,14 @@ final class PlanPdfRenderer
      * the block gap above it and reads as a hole rather than as padding. The
      * label's own line box already leaves a little air over the capitals.
      */
-    private const HEAD_PADDING_BOTTOM = 1.2;
+    private const float HEAD_PADDING_BOTTOM = 1.2;
 
     /**
      * Extra space between the wrapped lines of a text cell, in mm. Applied to
      * drawing and measuring alike - a value used for only one of the two would
      * make the row borders miss the text they enclose.
      */
-    private const LINE_SPACING = 0.8;
-
-    /**
-     * Line height for the rich text fields, which go through the HTML cell
-     * renderer and so cannot take LINE_SPACING. Measured to match it: for the
-     * 10pt the descriptions are drawn at, LINE_SPACING of 0.8mm makes a
-     * three-line block 14.41mm tall, and 1.44 puts the HTML block at 14.43mm.
-     * The two are matched at that font size and in FONT_SANS only -
-     * LINE_SPACING is absolute and this is relative, so changing the
-     * description size or the family needs a new value here. It was 1.34 for
-     * Liberation Sans.
-     */
-    private const HTML_LINE_HEIGHT = '1.44';
+    private const float LINE_SPACING = 0.8;
 
     /**
      * Space after a text block, in mm. Has to stay clearly larger than the
@@ -201,10 +189,10 @@ final class PlanPdfRenderer
     private const PARAGRAPH_GAP = 2 * self::SPACE;
 
     /** Height the plan logo is drawn at, in mm. */
-    private const LOGO_HEIGHT = 12.0;
+    private const float LOGO_HEIGHT = 12.0;
 
     /** Resolution SVG logos are rasterised at, in dots per inch. */
-    private const LOGO_DPI = 600;
+    private const int LOGO_DPI = 600;
 
     /**
      * The palette, taken from the Tailwind theme the rest of the application
@@ -217,30 +205,30 @@ final class PlanPdfRenderer
      * node_modules/tailwindcss/theme.css and converting - they are not
      * hand-picked approximations.
      */
-    private const COLOR_BLACK = '#000000';
+    private const string COLOR_BLACK = '#000000';
 
-    private const COLOR_SKY_700 = '#0069a8';
+    private const string COLOR_SKY_700 = '#0069a8';
 
-    private const COLOR_YELLOW_800 = '#894b00';
+    private const string COLOR_YELLOW_800 = '#894b00';
 
-    private const COLOR_ZINC_500 = '#71717b';
+    private const string COLOR_ZINC_500 = '#71717b';
 
-    private const COLOR_ZINC_600 = '#52525c';
+    private const string COLOR_ZINC_600 = '#52525c';
 
-    private const COLOR_ZINC_700 = '#3f3f46';
+    private const string COLOR_ZINC_700 = '#3f3f46';
 
     /** Grey shared by every rule and box border in the document. */
-    private const RULE_COLOR = self::COLOR_ZINC_500;
+    private const string RULE_COLOR = self::COLOR_ZINC_500;
 
     /**
      * Width of the bar beside a block quote, in mm. Heavier than the hairlines
      * that separate the blocks of the document, because this one marks a span
      * of text rather than a boundary between two.
      */
-    private const QUOTE_RULE_WIDTH = 0.6;
+    private const float QUOTE_RULE_WIDTH = 0.6;
 
     /** Font size of the health certificate badge, in pt. */
-    private const BADGE_FONT_SIZE = 8.0;
+    private const float BADGE_FONT_SIZE = 8.0;
 
     /**
      * Padding inside the health certificate badge, in mm - one unit beside
@@ -259,7 +247,7 @@ final class PlanPdfRenderer
      * its ink stops. It did - 1.14mm above the capitals against 0.68mm below
      * the "p" of "Gesundheitspass".
      */
-    private const BADGE_PADDING_X = self::SPACE;
+    private const float BADGE_PADDING_X = self::SPACE;
 
     private const BADGE_PADDING_Y = 2 * self::SPACE / 3;
 
@@ -285,7 +273,7 @@ final class PlanPdfRenderer
      * than this one notice deserves, and it would cost toner on a sheet whose
      * purpose is to be printed.
      */
-    private const BADGE_COLOR = self::COLOR_YELLOW_800;
+    private const string BADGE_COLOR = self::COLOR_YELLOW_800;
 
     /**
      * Extra air above and below the health certificate badge, in mm, on top
@@ -294,7 +282,7 @@ final class PlanPdfRenderer
      * and its border needs to stand clear of both, or the box reads as
      * attached to whichever line it sits nearer.
      */
-    private const BADGE_GAP = self::SPACE;
+    private const float BADGE_GAP = self::SPACE;
 
     /**
      * Space before a shift heading, in mm - and so between two blocks of the
@@ -311,7 +299,7 @@ final class PlanPdfRenderer
      * number still fits inside the cell padding once right-aligned - at 6mm it
      * reached past the table's left edge.
      */
-    private const COL_INDEX_WIDTH = 7.5;
+    private const float COL_INDEX_WIDTH = 7.5;
 
     /**
      * Heading sizes in pt, one ladder so the steps stay visible next to each
@@ -325,11 +313,11 @@ final class PlanPdfRenderer
      * upwards instead - in even 3pt steps, which keeps the plan title clearly
      * above the category without letting it dominate an A4 page.
      */
-    private const HEADING_SIZE_PLAN = 18.0;
+    private const float HEADING_SIZE_PLAN = 18.0;
 
-    private const HEADING_SIZE_CATEGORY = 15.0;
+    private const float HEADING_SIZE_CATEGORY = 15.0;
 
-    private const HEADING_SIZE_SHIFT = 12.0;
+    private const float HEADING_SIZE_SHIFT = 12.0;
 
     /**
      * The two families the document is set in. Headings take the serif, so
@@ -365,7 +353,7 @@ final class PlanPdfRenderer
      * would otherwise take the whole remainder into two or three gaps and
      * read far worse than an uneven right edge.
      */
-    private const RICH_MAX_STRETCH = 2.0;
+    private const float RICH_MAX_STRETCH = 2.0;
 
     /**
      * Colour of a link's text, wherever one appears - in a description, in the
@@ -377,11 +365,11 @@ final class PlanPdfRenderer
      * (technique G183 asks for 3:1). The grey this replaced managed only
      * 2.16:1 against the text, so the change is an improvement on that count.
      */
-    private const LINK_COLOR = self::COLOR_SKY_700;
+    private const string LINK_COLOR = self::COLOR_SKY_700;
 
-    private const FONT_SANS = 'adwaitasans';
+    private const string FONT_SANS = 'adwaitasans';
 
-    private const FONT_SERIF = 'merriweather';
+    private const string FONT_SERIF = 'merriweather';
 
     /**
      * TeX hyphenation pattern file per locale, relative to
@@ -389,7 +377,7 @@ final class PlanPdfRenderer
      * column instead of breaking - and justified descriptions pull their word
      * spaces apart to almost twice the normal width to fill the line.
      */
-    private const HYPHENATION_PATTERNS = [
+    private const array HYPHENATION_PATTERNS = [
         'de' => 'hyph-de-1996.tex',
         'en' => 'hyph-en-us.tex',
         'es' => 'hyph-es.tex',

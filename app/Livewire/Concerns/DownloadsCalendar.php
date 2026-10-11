@@ -25,7 +25,7 @@ trait DownloadsCalendar
      */
     protected function calendarDownload(iterable $shifts, string $title, ?string $name = null): StreamedResponse
     {
-        $calendar = app(ShiftCalendar::class);
+        $calendar = resolve(ShiftCalendar::class);
 
         $body = $calendar->buildMany(
             $shifts,
@@ -37,7 +37,7 @@ trait DownloadsCalendar
         );
 
         return response()->streamDownload(
-            fn () => print ($body),
+            fn (): int => print ($body),
             $calendar->filenameFor($title),
             ['Content-Type' => 'text/calendar; charset=utf-8'],
         );

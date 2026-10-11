@@ -80,5 +80,4 @@ return [
     'selectShift' => 'Schicht :shift auswählen',
     'shiftsSelected' => '{1} 1 Schicht ausgewählt|[2,*] :count Schichten ausgewählt',
     'clearSelection' => 'Auswahl aufheben',
-    'subscribeSelected' => 'Für Auswahl einschreiben',
 ];

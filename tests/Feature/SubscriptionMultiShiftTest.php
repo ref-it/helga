@@ -48,9 +48,9 @@ test('ticking shifts sends the visitor to the sign-up form for exactly those shi
     $second = addShiftToPlan($first);
 
     Livewire::test(Show::class, ['plan' => $first->plan])
-        ->assertDontSee(__('plan.subscribeSelected'))
+        ->assertDontSeeHtml('wire:click="subscribeToSelected"')
         ->set('selectedShifts', [(string) $first->id, (string) $second->id])
-        ->assertSee(__('plan.subscribeSelected'))
+        ->assertSeeHtml('wire:click="subscribeToSelected"')
         ->call('subscribeToSelected')
         ->assertRedirect(route('plan.subscription.createMany', [
             'plan' => $first->plan->view_id,

@@ -43,7 +43,7 @@
                         {{ __('plan.clearSelection') }}
                     </flux:button>
                     <flux:button variant="primary" icon="plus" wire:click="subscribeToSelected">
-                        {{ __('plan.subscribeSelected') }}
+                        {{ __('plan.subscribe') }}
                     </flux:button>
                 </div>
             </div>

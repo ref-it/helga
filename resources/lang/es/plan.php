@@ -71,5 +71,4 @@ return [
     'selectShift' => 'Seleccionar el turno :shift',
     'shiftsSelected' => '{1} 1 turno seleccionado|[2,*] :count turnos seleccionados',
     'clearSelection' => 'Borrar la selección',
-    'subscribeSelected' => 'Inscribirse en la selección',
 ];

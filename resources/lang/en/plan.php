@@ -80,5 +80,4 @@ return [
     'selectShift' => 'Select shift :shift',
     'shiftsSelected' => '{1} 1 shift selected|[2,*] :count shifts selected',
     'clearSelection' => 'Clear selection',
-    'subscribeSelected' => 'Subscribe to selection',
 ];

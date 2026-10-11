@@ -387,3 +387,12 @@ test('guests get neither subscriber names nor the button for them', function ():
         ->assertDontSee('aria-label="'.__('plan.showSubscribers').'"', false)
         ->assertDontSee('Jane Doe');
 });
+
+test('the shift description page has no sign-up button', function (): void {
+    $shift = createPlanWithShift();
+
+    $this->get(route('plan.shift.show', ['plan' => $shift->plan->view_id, 'shift' => $shift]))
+        ->assertOk()
+        ->assertSee($shift->title)
+        ->assertDontSee(route('plan.subscription.create', ['plan' => $shift->plan->view_id, 'shift' => $shift]), false);
+});

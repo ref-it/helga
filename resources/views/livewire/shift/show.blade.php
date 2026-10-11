@@ -18,15 +18,6 @@
                 </span>
             </div>
 
-            @if ($shift->team_size > $shift->subscriptions->count() && ! $shift->isSubscribedBy(auth()->user()))
-                <flux:button
-                    variant="primary"
-                    icon="plus"
-                    href="{{route('plan.subscription.create', ['plan' => $shift->plan->view_id, 'shift'=> $shift])}}"
-                >
-                    {{__('plan.subscribe')}}
-                </flux:button>
-            @endif
             @if ($shift->isSubscribedBy(auth()->user()) && $shift->selfUnsubscribeAllowed())
                 <flux:modal.trigger name="unsubscribe-shift-{{ $shift->id }}">
                     <flux:button icon="ban">

@@ -43,7 +43,7 @@ return [
     'verifyEmailIntro' => 'You signed up for a shift with this email address. Please confirm it belongs to you.',
     'verifyEmailAction' => 'Confirm email address',
     'verifyEmailOutro' => "If you didn't sign up for a shift, you can ignore this email.",
-    'emailVerified' => 'Your email address has been confirmed.',
+    'emailVerified' => '{1} Your email address has been confirmed.|[2,*] Your email address has been confirmed for all :count shifts.',
     'confirmDelete' => 'Are you sure you want to unsubscribe this person from the shift?',
     'healthCertificateConfirm' => 'I confirm that I have a valid health certificate (proof of instruction under §43 of the German Infektionsschutzgesetz).',
     'healthCertificateRequired' => 'You need to confirm you have a valid health certificate to sign up for this shift.',
@@ -53,4 +53,9 @@ return [
     'clothingSizeAbbr' => 'Size',
     'clothingSizeChoose' => 'Please choose',
     'clothingSizeRequired' => 'You need to choose a clothing size to sign up for this shift.',
+    'successfullyCreatedMany' => 'Successfully subscribed to :count shifts',
+    'successfullyCreatedManyVerifyEmail' => 'Successfully subscribed to :count shifts. Please check your email to confirm your address.',
+    'someShiftsTaken' => '{1} One shift had been taken in the meantime and was skipped.|[2,*] :count shifts had been taken in the meantime and were skipped.',
+    'verifyEmailIntroMany' => 'You signed up for the following shifts with this email address. Please confirm it belongs to you.',
+    'unsubscribeLinkIntroMany' => 'If you ever want to unsubscribe from one of these shifts again, you can do so via these links:',
 ];

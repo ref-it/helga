@@ -56,31 +56,57 @@ class Subscription extends Model
 
     /**
      * Send a signed link the subscriber can click to confirm they own the
-     * email address they signed up with. Anonymous subscribers have no
-     * account to unsubscribe with later, so - if the plan allows it - the
-     * same email also carries a link to unsubscribe from this shift.
+     * email address they signed up with.
      */
     public function sendEmailVerification(): void
     {
-        $link = URL::temporarySignedRoute('plan.subscription.verifyEmail', now()->addDays(7), [
-            'plan' => $this->shift->plan,
-            'shift' => $this->shift,
-            'subscription' => $this,
-        ]);
+        static::sendEmailVerificationFor(collect([$this]));
+    }
 
-        $unsubscribeLink = null;
+    /**
+     * Send the single email a whole sign-up produces, whether it covered one
+     * shift or several: one signed link confirming the address for every
+     * subscription it created at once. Anonymous subscribers have no account
+     * to unsubscribe with later, so - if the plan allows it - the same email
+     * also carries a link to unsubscribe from each of the shifts.
+     *
+     * @param  Collection<int, Subscription>  $subscriptions  all for the same
+     *                                                        address, created by the same sign-up
+     */
+    public static function sendEmailVerificationFor(Collection $subscriptions): void
+    {
+        $subscriptions = $subscriptions->values();
 
-        if ($this->shift->plan->allow_unsubscribe) {
-            $this->confirmation = Str::random(24);
-            $this->save();
-            $unsubscribeLink = route('plan.subscription.confirmRemove', [
-                'plan' => $this->shift->plan,
-                'shift' => $this->shift,
-                'confirmation' => $this->confirmation,
-            ]);
+        if ($subscriptions->isEmpty()) {
+            return;
         }
 
-        $this->notify(new SendEmailVerification($link, $unsubscribeLink, $this->shift));
+        $plan = $subscriptions->first()->shift->plan;
+
+        // the ids travel in the query string, which a signed URL covers just
+        // as it does the path - tampering with the list breaks the signature
+        $link = URL::temporarySignedRoute('plan.subscription.verifyEmails', now()->addDays(7), [
+            'plan' => $plan,
+            'subscriptions' => $subscriptions->pluck('id')->all(),
+        ]);
+
+        $unsubscribeLinks = [];
+
+        if ($plan->allow_unsubscribe) {
+            foreach ($subscriptions as $subscription) {
+                $subscription->confirmation = Str::random(24);
+                $subscription->save();
+                $unsubscribeLinks[$subscription->id] = route('plan.subscription.confirmRemove', [
+                    'plan' => $plan,
+                    'shift' => $subscription->shift,
+                    'confirmation' => $subscription->confirmation,
+                ]);
+            }
+        }
+
+        // every one of them carries the same address, so whichever is handed
+        // the notification reaches the same inbox
+        $subscriptions->first()->notify(new SendEmailVerification($link, $subscriptions, $unsubscribeLinks));
     }
 
     /**

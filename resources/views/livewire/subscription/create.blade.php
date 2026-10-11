@@ -1,8 +1,26 @@
 <div class="p-6 sm:px-8 flex flex-col gap-6 min-h-full">
-    <h1 class="text-2xl font-semibold">{{ $shift->title }}</h1>
-    @include('partials.rich_text', ['html' => $shift->description])
-    <div class="text-base">
-        {!! \App\Http\Controllers\PlanController::buildDateString($shift->start, $shift->end) !!}
+    <h1 class="text-2xl font-semibold">{{ $plan->title }}</h1>
+
+    <div class="space-y-3">
+        @foreach($this->shifts as $shift)
+            <flux:card size="sm" wire:key="subscribe-shift-{{ $shift->id }}">
+                @if($shift->description)
+                    {{-- the summary is the toggle and the description is collapsed by default: several long
+                         descriptions would push the sign-up form off the screen --}}
+                    <flux:accordion transition>
+                        <flux:accordion.item>
+                            <flux:accordion.heading>@include('livewire.subscription.partials.shift_summary', ['shift' => $shift])</flux:accordion.heading>
+                            <flux:accordion.content>
+                                <div class="mt-3 mb-2 text-sm font-medium text-zinc-800 dark:text-white">{{ __('shift.description') }}</div>
+                                @include('partials.rich_text', ['html' => $shift->description])
+                            </flux:accordion.content>
+                        </flux:accordion.item>
+                    </flux:accordion>
+                @else
+                    @include('livewire.subscription.partials.shift_summary', ['shift' => $shift])
+                @endif
+            </flux:card>
+        @endforeach
     </div>
 
     @guest
@@ -51,14 +69,14 @@
                 <flux:label>{{__("subscription.notifyMe")}}</flux:label>
             </flux:field>
         @endif
-        @if($shift->requires_health_certificate)
+        @if($this->requiresHealthCertificate)
             <flux:field variant="inline" class="col-span-full">
                 <flux:checkbox wire:model="health_certificate_confirmed" />
                 <flux:label>{{__("subscription.healthCertificateConfirm")}}</flux:label>
                 <flux:error name="health_certificate_confirmed" />
             </flux:field>
         @endif
-        @if($shift->requires_clothing_size)
+        @if($this->requiresClothingSize)
             <flux:field>
                 <flux:label>{{__("subscription.clothingSize")}}</flux:label>
                 <flux:select wire:model="clothing_size" variant="listbox" placeholder="{{__('subscription.clothingSizeChoose')}}">
@@ -84,12 +102,14 @@
         @endguest
     </div>
 
-    <div class="py-6 -mx-8 -mb-8 mt-auto px-8 flex items-center justify-end gap-x-4 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800">
-        <flux:button href="{{ route('plan.show', ['plan' => $plan]) }}" icon="ban">
-            {{__('subscription.cancel')}}
-        </flux:button>
-        <flux:button variant="primary" icon="save" wire:click="save">
-            {{__('subscription.save')}}
-        </flux:button>
+    <div class="-mb-6 mt-auto w-[100cqw] ml-[calc(50%-50cqw)] border-t border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800">
+        <div class="mx-auto max-w-7xl py-6 px-6 sm:px-8 flex items-center justify-end gap-x-4">
+            <flux:button href="{{ route('plan.show', ['plan' => $plan]) }}" icon="ban">
+                {{__('subscription.cancel')}}
+            </flux:button>
+            <flux:button variant="primary" icon="save" wire:click="save">
+                {{__('subscription.save')}}
+            </flux:button>
+        </div>
     </div>
 </div>

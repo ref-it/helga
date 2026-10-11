@@ -110,6 +110,21 @@ class Shift extends Model
     }
 
     /**
+     * Whether the given visitor can still sign up for this shift - a slot
+     * must be free and they must not be on it already.
+     *
+     * This reads the loaded `subscriptions` relation so that rendering a
+     * whole plan costs no extra query per shift; the sign-up form itself
+     * re-checks the occupancy against the database before creating
+     * anything.
+     */
+    public function isOpenFor(?User $user): bool
+    {
+        return $this->subscriptions->count() < $this->team_size
+            && ! $this->isSubscribedBy($user);
+    }
+
+    /**
      * Whether a subscriber may currently remove themselves from this shift -
      * the plan must allow self-unsubscription, and this shift's own
      * unsubscribe lock window (hours before start) must not have begun yet.

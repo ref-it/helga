@@ -6,8 +6,10 @@ use App\Models\Plan;
 use App\Models\Shift;
 use App\Models\Subscription;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
@@ -16,8 +18,16 @@ class Create extends Component
     #[Locked]
     public Plan $plan;
 
+    /**
+     * The shifts this sign-up covers - one subscription is created per
+     * shift from the single set of contact details below. Usually just the
+     * one shift whose "subscribe" button was clicked, but the plan view can
+     * hand over several ticked shifts at once.
+     *
+     * @var array<int, int>
+     */
     #[Locked]
-    public Shift $shift;
+    public array $shiftIds = [];
 
     public string $name = '';
 
@@ -45,6 +55,34 @@ class Create extends Component
 
     public string $captcha = '';
 
+    /**
+     * @return EloquentCollection<int, Shift>
+     */
+    #[Computed]
+    public function shifts(): EloquentCollection
+    {
+        return Shift::whereIn('id', $this->shiftIds)
+            ->with('subscriptions')
+            ->orderBy('start')
+            ->get();
+    }
+
+    /**
+     * A field is only asked for - and only enforced - if at least one of the
+     * selected shifts needs it.
+     */
+    #[Computed]
+    public function requiresHealthCertificate(): bool
+    {
+        return $this->shifts->contains('requires_health_certificate', true);
+    }
+
+    #[Computed]
+    public function requiresClothingSize(): bool
+    {
+        return $this->shifts->contains('requires_clothing_size', true);
+    }
+
     protected function rules(): array
     {
         return [
@@ -55,9 +93,9 @@ class Create extends Component
             'email' => Auth::check() ? 'nullable|email|max:100' : 'required|email|max:100',
             'comment' => 'nullable|max:500',
             // only shifts that require it force this checkbox to be ticked
-            'health_certificate_confirmed' => $this->shift->requires_health_certificate ? 'accepted' : 'boolean',
+            'health_certificate_confirmed' => $this->requiresHealthCertificate ? 'accepted' : 'boolean',
             // only shifts that require it force a size to be picked
-            'clothing_size' => $this->shift->requires_clothing_size ? 'required|in:S,M,L,XL,XXL' : 'nullable|in:S,M,L,XL,XXL',
+            'clothing_size' => $this->requiresClothingSize ? 'required|in:S,M,L,XL,XXL' : 'nullable|in:S,M,L,XL,XXL',
             // the captcha guards against anonymous spam signups - a logged-in
             // visitor is already authenticated via OIDC, so it's skipped
             'captcha' => Auth::check() ? 'nullable' : 'required|captcha',
@@ -78,18 +116,33 @@ class Create extends Component
         ];
     }
 
-    public function mount(Plan $plan, Shift $shift): void
+    public function mount(Plan $plan, ?Shift $shift = null)
     {
         // anonymous users can subscribe to a shift they have the link to,
         // but only once the plan has been published - we can't use auth
         // Policies for the shift/plan integrity check below
-        if ($shift->plan->id !== $plan->id) {
-            abort(403);
-        }
         $this->authorize('show', $plan);
 
         $this->plan = $plan;
-        $this->shift = $shift;
+
+        // one route carries a single shift in its path, the other a list of
+        // ticked shifts in its query string - a `Shift` the container made up
+        // for the missing route parameter has no record behind it
+        if ($shift instanceof Shift && $shift->exists) {
+            if ($shift->plan_id !== $plan->id) {
+                abort(403);
+            }
+
+            $this->shiftIds = [$shift->id];
+        } else {
+            $this->shiftIds = $this->shiftIdsFromRequest($plan);
+
+            if ($this->shiftIds === []) {
+                Flux::toast(variant: 'danger', text: __('subscription.enoughSubscription'));
+
+                return $this->redirectRoute('plan.show', ['plan' => $plan], navigate: true);
+            }
+        }
 
         // no need for a captcha challenge if the visitor is already
         // authenticated via OIDC
@@ -120,6 +173,8 @@ class Create extends Component
                     ->value('phone') ?? '');
             }
         }
+
+        return null;
     }
 
     public function refreshCaptcha(): void
@@ -130,7 +185,8 @@ class Create extends Component
 
     public function render()
     {
-        return view('livewire.subscription.create')->title($this->shift->title);
+        return view('livewire.subscription.create')
+            ->title(__('subscription.subscribe').': '.$this->plan->title);
     }
 
     public function save()
@@ -159,7 +215,13 @@ class Create extends Component
             throw $e;
         }
 
-        if ($this->shift->team_size <= $this->shift->subscriptions()->count()) {
+        // a shift may well have filled up while the form was open - sign up
+        // for the ones that still have room and report on the rest
+        $open = $this->shifts->filter(
+            fn (Shift $shift): bool => $shift->team_size > $shift->subscriptions()->count()
+        );
+
+        if ($open->isEmpty()) {
             Flux::toast(variant: 'danger', text: __('subscription.enoughSubscription'));
 
             return to_route('plan.show', ['plan' => $this->plan]);
@@ -169,7 +231,7 @@ class Create extends Component
         // trusted via the OIDC login - anonymous visitors must confirm theirs
         $isVerified = $user && $this->email !== '';
 
-        $subscription = $this->shift->subscriptions()->create([
+        $subscriptions = $open->map(fn (Shift $shift): Subscription => $shift->subscriptions()->create([
             'name' => $this->name,
             'phone' => $this->phone,
             'email' => $this->email,
@@ -182,15 +244,48 @@ class Create extends Component
             'email_verified_at' => $isVerified ? now() : null,
             'health_certificate_confirmed' => $this->health_certificate_confirmed,
             'clothing_size' => $this->clothing_size !== '' ? $this->clothing_size : null,
-        ]);
+        ]));
+
+        $skipped = $this->shifts->count() - $subscriptions->count();
 
         if (! $user) {
-            $subscription->sendEmailVerification();
-            Flux::toast(variant: 'success', text: __('subscription.successfullyCreatedVerifyEmail'));
+            // one sign-up, one email - it confirms the address for every
+            // subscription it just created
+            Subscription::sendEmailVerificationFor($subscriptions);
+
+            Flux::toast(variant: 'success', text: $subscriptions->count() === 1
+                ? __('subscription.successfullyCreatedVerifyEmail')
+                : __('subscription.successfullyCreatedManyVerifyEmail', ['count' => $subscriptions->count()]));
         } else {
-            Flux::toast(variant: 'success', text: __('subscription.successfullyCreated'));
+            Flux::toast(variant: 'success', text: $subscriptions->count() === 1
+                ? __('subscription.successfullyCreated')
+                : __('subscription.successfullyCreatedMany', ['count' => $subscriptions->count()]));
+        }
+
+        if ($skipped > 0) {
+            Flux::toast(variant: 'warning', text: __('subscription.someShiftsTaken', ['count' => $skipped]));
         }
 
         return to_route('plan.show', ['plan' => $this->plan]);
+    }
+
+    /**
+     * The ticked shifts from the `shifts` query parameter, reduced to the
+     * ones of this plan the visitor could actually still join - anything
+     * else is stale (filled up meanwhile) or forged.
+     *
+     * @return array<int, int>
+     */
+    private function shiftIdsFromRequest(Plan $plan): array
+    {
+        $requested = array_map('intval', (array) request()->query('shifts', []));
+
+        return $plan->shifts()
+            ->with('subscriptions')
+            ->whereIn('id', $requested)
+            ->get()
+            ->filter(fn (Shift $shift): bool => $shift->isOpenFor(Auth::user()))
+            ->pluck('id')
+            ->all();
     }
 }

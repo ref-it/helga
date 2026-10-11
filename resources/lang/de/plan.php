@@ -77,4 +77,8 @@ return [
     'dangerZone' => 'Gefahrenzone',
     'delete' => 'Schichtplan löschen',
     'confirmDelete' => 'Möchtest du diesen Schichtplan wirklich unwiderruflich löschen? Alle Schichten und Anmeldungen gehen dabei verloren.',
+    'selectShift' => 'Schicht :shift auswählen',
+    'shiftsSelected' => '{1} 1 Schicht ausgewählt|[2,*] :count Schichten ausgewählt',
+    'clearSelection' => 'Auswahl aufheben',
+    'subscribeSelected' => 'Für Auswahl einschreiben',
 ];

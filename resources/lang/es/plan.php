@@ -68,4 +68,8 @@ return [
     'dangerZone' => 'Zona de peligro',
     'delete' => 'Eliminar plan de turnos',
     'confirmDelete' => '¿Seguro que quieres eliminar este plan de turnos de forma permanente? Se perderán todos los turnos e inscripciones.',
+    'selectShift' => 'Seleccionar el turno :shift',
+    'shiftsSelected' => '{1} 1 turno seleccionado|[2,*] :count turnos seleccionados',
+    'clearSelection' => 'Borrar la selección',
+    'subscribeSelected' => 'Inscribirse en la selección',
 ];

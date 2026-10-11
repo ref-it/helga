@@ -133,6 +133,22 @@ Route::get('/s/{plan:view_id}/shift/{shift}/details', App\Livewire\Shift\Show::c
 Route::get('/s/{plan:view_id}/shift/{shift}', App\Livewire\Subscription\Create::class)
     ->name('plan.subscription.create');
 
+/**
+ * Subscribe to several shifts at once. The ticked shifts travel as a
+ * `shifts` query parameter (see Plan\Show::subscribeToSelected()); the form
+ * behind it is the same one, filling in one subscription per shift.
+ */
+Route::get('/s/{plan:view_id}/subscribe', App\Livewire\Subscription\Create::class)
+    ->name('plan.subscription.createMany');
+
+/**
+ * Confirm the email address a sign-up was made with. One sign-up sends one
+ * email however many shifts it covered, so the link names every subscription
+ * it created; the older per-subscription route stays for the links already
+ * sitting in inboxes.
+ */
+Route::get('/s/{plan:view_id}/verify-email', [SubscriptionController::class, 'verifyEmails'])
+    ->middleware('signed')->name('plan.subscription.verifyEmails');
 Route::get('/s/{plan:view_id}/shift/{shift}/{subscription}/verify-email', [SubscriptionController::class, 'verifyEmail'])
     ->middleware('signed')->name('plan.subscription.verifyEmail');
 

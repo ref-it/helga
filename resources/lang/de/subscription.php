@@ -43,7 +43,7 @@ return [
     'verifyEmailIntro' => 'Du hast dich mit dieser E-Mail-Adresse für eine Schicht eingetragen. Bitte bestätige, dass sie dir gehört.',
     'verifyEmailAction' => 'E-Mail-Adresse bestätigen',
     'verifyEmailOutro' => 'Falls du dich nicht für eine Schicht eingetragen hast, kannst du dieses E-Mail ignorieren.',
-    'emailVerified' => 'Deine E-Mail-Adresse wurde bestätigt.',
+    'emailVerified' => '{1} Deine E-Mail-Adresse wurde bestätigt.|[2,*] Deine E-Mail-Adresse wurde für alle :count Schichten bestätigt.',
     'confirmDelete' => 'Möchtest du diese Person wirklich aus der Schicht austragen?',
     'healthCertificateConfirm' => 'Ich bestätige, dass ich über einen gültigen Gesundheitspass (Bescheinigung über eine Belehrung nach § 43 des Infektionsschutzgesetzes) verfüge.',
     'healthCertificateRequired' => 'Du musst bestätigen, dass du über einen gültigen Gesundheitspass verfügst, um dich für diese Schicht einzutragen.',
@@ -53,4 +53,9 @@ return [
     'clothingSizeAbbr' => 'Gr.',
     'clothingSizeChoose' => 'Bitte wählen',
     'clothingSizeRequired' => 'Du musst eine Kleidungsgröße auswählen, um dich für diese Schicht einzutragen.',
+    'successfullyCreatedMany' => ':count Anmeldungen erstellt',
+    'successfullyCreatedManyVerifyEmail' => ':count Anmeldungen erstellt. Bitte bestätige deine E-Mail-Adresse über den Link, den wir dir gesendet haben.',
+    'someShiftsTaken' => '{1} Eine Schicht war inzwischen besetzt und wurde übersprungen.|[2,*] :count Schichten waren inzwischen besetzt und wurden übersprungen.',
+    'verifyEmailIntroMany' => 'Du hast dich mit dieser E-Mail-Adresse für die folgenden Schichten eingetragen. Bitte bestätige, dass sie dir gehört.',
+    'unsubscribeLinkIntroMany' => 'Falls du dich später wieder von einer dieser Schichten austragen möchtest, kannst du das über diese Links tun:',
 ];

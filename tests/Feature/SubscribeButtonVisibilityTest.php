@@ -2,7 +2,7 @@
 
 use App\Models\User;
 
-test('the subscribe button is hidden for a shift the logged-in user already joined', function (): void {
+test('a shift the logged-in user already joined cannot be selected for sign-up', function (): void {
     $plan = createOwnedPlan(User::factory()->create());
     $plan->update(['published' => true, 'active' => true]);
     $shift = createShiftForPlan($plan);
@@ -11,10 +11,10 @@ test('the subscribe button is hidden for a shift the logged-in user already join
 
     $this->actingAs($user)->get(route('plan.show', $plan))
         ->assertOk()
-        ->assertDontSee(__('plan.subscribe'));
+        ->assertDontSee(__('plan.selectShift', ['shift' => $shift->title]));
 });
 
-test('the subscribe button still shows for a shift the logged-in user has not joined', function (): void {
+test('a shift the logged-in user has not joined can still be selected for sign-up', function (): void {
     $plan = createOwnedPlan(User::factory()->create());
     $plan->update(['published' => true, 'active' => true]);
     $shift = createShiftForPlan($plan);
@@ -23,7 +23,7 @@ test('the subscribe button still shows for a shift the logged-in user has not jo
 
     $this->actingAs($user)->get(route('plan.show', $plan))
         ->assertOk()
-        ->assertSee(__('plan.subscribe'));
+        ->assertSee(__('plan.selectShift', ['shift' => $shift->title]));
 });
 
 test('the unsubscribe button is hidden from a guest even when unsubscribing is allowed', function (): void {

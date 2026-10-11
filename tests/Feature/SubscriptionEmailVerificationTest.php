@@ -100,7 +100,11 @@ test('the verification email includes an unsubscribe link when the plan allows u
         ->call('save');
 
     $subscription = $shift->subscriptions()->where('email', 'jane@example.com')->firstOrFail();
-    $mail = (new SendEmailVerification('https://example.test/verify', 'https://example.test/unsubscribe'))->toMail($subscription);
+    $mail = (new SendEmailVerification(
+        'https://example.test/verify',
+        collect([$subscription]),
+        [$subscription->id => 'https://example.test/unsubscribe'],
+    ))->toMail($subscription);
 
     expect($subscription->confirmation)->not->toBeNull();
     expect($mail->actionUrl)->toBe('https://example.test/verify');

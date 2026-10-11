@@ -88,6 +88,25 @@ function fakeOidcHttp(array $responses): void
     Socialite::driver('openidconnect')->setHttpClient(new Client(['handler' => $handlerStack]));
 }
 
+/**
+ * How the plan page renders a shift's checkbox: 'enabled' (can be ticked),
+ * 'disabled' (shown but inert) or null (no checkbox at all).
+ */
+function shiftCheckboxState(string $html, Shift $shift): ?string
+{
+    $label = e(__('plan.selectShift', ['shift' => $shift->title]));
+
+    preg_match_all('/<ui-checkbox\b[^>]*>/', $html, $matches);
+
+    foreach ($matches[0] as $tag) {
+        if (str_contains($tag, 'aria-label="'.$label.'"')) {
+            return preg_match('/\sdisabled\b/', $tag) ? 'disabled' : 'enabled';
+        }
+    }
+
+    return null;
+}
+
 function createPlanWithShift(): Shift
 {
     $plan = Plan::create([

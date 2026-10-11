@@ -2,16 +2,16 @@
 
 use App\Models\User;
 
-test('a shift the logged-in user already joined cannot be selected for sign-up', function (): void {
+test('a shift the logged-in user already joined has a disabled checkbox', function (): void {
     $plan = createOwnedPlan(User::factory()->create());
     $plan->update(['published' => true, 'active' => true]);
     $shift = createShiftForPlan($plan);
     $user = User::factory()->create(['email' => 'jane@example.com']);
     $shift->subscriptions()->create(['name' => 'Jane', 'email' => 'jane@example.com']);
 
-    $this->actingAs($user)->get(route('plan.show', $plan))
-        ->assertOk()
-        ->assertDontSee(__('plan.selectShift', ['shift' => $shift->title]));
+    $response = $this->actingAs($user)->get(route('plan.show', $plan))->assertOk();
+
+    expect(shiftCheckboxState($response->getContent(), $shift))->toBe('disabled');
 });
 
 test('a shift the logged-in user has not joined can still be selected for sign-up', function (): void {
@@ -21,9 +21,9 @@ test('a shift the logged-in user has not joined can still be selected for sign-u
     $user = User::factory()->create(['email' => 'jane@example.com']);
     $shift->subscriptions()->create(['name' => 'Someone else', 'email' => 'other@example.com']);
 
-    $this->actingAs($user)->get(route('plan.show', $plan))
-        ->assertOk()
-        ->assertSee(__('plan.selectShift', ['shift' => $shift->title]));
+    $response = $this->actingAs($user)->get(route('plan.show', $plan))->assertOk();
+
+    expect(shiftCheckboxState($response->getContent(), $shift))->toBe('enabled');
 });
 
 test('the unsubscribe button is hidden from a guest even when unsubscribing is allowed', function (): void {

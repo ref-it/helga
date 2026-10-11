@@ -16,7 +16,8 @@
                 @include('livewire.plan.partials.public_shift_card_content', ['shift' => $shift, 'plan' => $plan, 'namesVisible' => $namesVisible])
             </flux:checkbox>
         @else
-            <flux:card size="sm" class="flex gap-3" wire:key="public-shift-card-{{ $shift->id }}">
+            <flux:card size="sm" class="flex items-start gap-3" wire:key="public-shift-card-{{ $shift->id }}">
+                <flux:checkbox variant="default" disabled class="mt-px" aria-label="{{ __('plan.selectShift', ['shift' => $shift->title]) }}" />
                 @include('livewire.plan.partials.public_shift_card_content', ['shift' => $shift, 'plan' => $plan, 'namesVisible' => $namesVisible])
             </flux:card>
         @endif

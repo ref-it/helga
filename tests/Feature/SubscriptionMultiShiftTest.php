@@ -28,19 +28,19 @@ function addShiftToPlan(Shift $shift, array $attributes = []): Shift
 test('a shift with room shows a checkbox on the plan page', function (): void {
     $shift = createPlanWithShift();
 
-    $this->get(route('plan.show', $shift->plan))
-        ->assertOk()
-        ->assertSee(__('plan.selectShift', ['shift' => $shift->title]));
+    $response = $this->get(route('plan.show', $shift->plan))->assertOk();
+
+    expect(shiftCheckboxState($response->getContent(), $shift))->toBe('enabled');
 });
 
-test('a full shift has no checkbox', function (): void {
+test('a full shift shows a disabled checkbox', function (): void {
     $shift = createPlanWithShift();
     $shift->update(['team_size' => 1]);
     $shift->subscriptions()->create(['name' => 'Jane', 'email' => 'jane@example.com']);
 
-    $this->get(route('plan.show', $shift->plan))
-        ->assertOk()
-        ->assertDontSee(__('plan.selectShift', ['shift' => $shift->title]));
+    $response = $this->get(route('plan.show', $shift->plan))->assertOk();
+
+    expect(shiftCheckboxState($response->getContent(), $shift))->toBe('disabled');
 });
 
 test('ticking shifts sends the visitor to the sign-up form for exactly those shifts', function (): void {

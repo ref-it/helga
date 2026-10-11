@@ -12,7 +12,6 @@
         @endif
         @yield('meta')
         @vite('resources/css/app.css')
-        @vite('resources/css/theme.css')
         @vite('resources/js/app.js')
         @fluxAppearance(['nonce' => $cspNonce])
     </head>

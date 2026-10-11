@@ -2,9 +2,10 @@
     <flux:sidebar.toggle class="lg:hidden" icon="menu" />
     {{-- guests have no sidebar on wide screens, so the brand sits here instead --}}
     @guest
-        <a wire:navigate href="/" class="hidden lg:flex items-center">
-            @include('partials.brand')
-        </a>
+        <div class="flex w-full max-w-7xl mx-auto sm:px-6 lg:px-8">
+            <a wire:navigate href="/" class="hidden lg:flex items-center">
+                @include('partials.brand')
+            </a>
     @endguest
     <div class="flex items-center gap-x-2 ml-auto">
         <flux:dropdown>
@@ -48,4 +49,7 @@
             </flux:navmenu>
         </flux:dropdown>
     </div>
+    @guest
+        </div>
+    @endguest
 </flux:navbar>

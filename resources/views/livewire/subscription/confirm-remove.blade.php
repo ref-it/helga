@@ -2,7 +2,7 @@
     <h1 class="text-2xl font-semibold">{{ __('subscription.unsubscribeConfirmation') }}</h1>
     <p>
         {{ __('subscription.confirmRemoveHelp') }} {{ $shift->title }}:
-        {!! \App\Http\Controllers\PlanController::buildDateString($shift->start, $shift->end) !!}
+        {!! \App\Http\Controllers\PlanController::buildDateHtml($shift->start, $shift->end) !!}
     </p>
 
     <div class="flex items-center gap-4">

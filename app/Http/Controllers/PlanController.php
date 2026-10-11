@@ -329,4 +329,22 @@ class PlanController extends Controller
 
         return $res;
     }
+
+    /**
+     * The same period as {@see buildDateString()} for web pages: across two
+     * days the start and the end each stay on one line, and the end only
+     * moves below the start when there is not enough room beside it.
+     */
+    public static function buildDateHtml(string $start, string $end): string
+    {
+        $start = Date::parse($start);
+        $end = Date::parse($end);
+
+        if ($start->isSameDay($end)) {
+            return e($start->translatedFormat('D, d.m.Y, H:i').' – '.$end->translatedFormat('H:i'));
+        }
+
+        return '<span class="whitespace-nowrap">'.e($start->translatedFormat('D, d.m.Y, H:i')).' –</span> '
+            .'<span class="whitespace-nowrap">'.e($end->translatedFormat('D, d.m.Y, H:i')).'</span>';
+    }
 }

@@ -19,13 +19,13 @@
 
                 <div class="flex flex-col gap-1 lg:hidden">
                     <flux:text size="sm" class="text-zinc-500 dark:text-zinc-400">{{__('shift.schedule')}}</flux:text>
-                    <div>{!! \App\Http\Controllers\PlanController::buildDateString($shift->start, $shift->end) !!}</div>
+                    <div>{!! \App\Http\Controllers\PlanController::buildDateHtml($shift->start, $shift->end) !!}</div>
                 </div>
             </div>
 
             <div class="hidden lg:flex flex-col gap-1 lg:w-64 lg:flex-none">
                 <flux:text size="sm" class="text-zinc-500 dark:text-zinc-400">{{__('shift.schedule')}}</flux:text>
-                <div>{!! \App\Http\Controllers\PlanController::buildDateString($shift->start, $shift->end) !!}</div>
+                <div>{!! \App\Http\Controllers\PlanController::buildDateHtml($shift->start, $shift->end) !!}</div>
             </div>
 
             <div class="flex flex-col gap-1 shrink-0">

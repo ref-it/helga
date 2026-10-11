@@ -2,7 +2,7 @@
     <h1 class="text-2xl font-semibold">{{ $shift->title }}</h1>
     @include('partials.rich_text', ['html' => $shift->description])
     <div class="text-sm text-zinc-500 dark:text-zinc-400">
-        {!! \App\Http\Controllers\PlanController::buildDateString($shift->start, $shift->end) !!}
+        {!! \App\Http\Controllers\PlanController::buildDateHtml($shift->start, $shift->end) !!}
     </div>
 
     <div class="grid gap-6">

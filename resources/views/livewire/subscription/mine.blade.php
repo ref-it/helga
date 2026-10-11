@@ -33,7 +33,7 @@
                                         {{ $shift->title }}
                                     </flux:link>
                                     <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                                        {!! \App\Http\Controllers\PlanController::buildDateString($shift->start, $shift->end) !!}
+                                        {!! \App\Http\Controllers\PlanController::buildDateHtml($shift->start, $shift->end) !!}
                                     </div>
                                 </div>
                                 {{-- the calendar entry is always on offer, so

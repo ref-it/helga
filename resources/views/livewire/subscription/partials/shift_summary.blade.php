@@ -7,6 +7,6 @@
         @endif
     </span>
     <span class="block text-sm font-normal">
-        {!! \App\Http\Controllers\PlanController::buildDateString($shift->start, $shift->end) !!}
+        {!! \App\Http\Controllers\PlanController::buildDateHtml($shift->start, $shift->end) !!}
     </span>
 </span>

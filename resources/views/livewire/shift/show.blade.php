@@ -14,7 +14,7 @@
             <div class="flex flex-col gap-1">
                 <span>{{ $shift->title }}</span>
                 <span class="text-sm text-zinc-500 dark:text-zinc-400 font-normal">
-                    {!! \App\Http\Controllers\PlanController::buildDateString($shift->start, $shift->end) !!}
+                    {!! \App\Http\Controllers\PlanController::buildDateHtml($shift->start, $shift->end) !!}
                 </span>
             </div>
 

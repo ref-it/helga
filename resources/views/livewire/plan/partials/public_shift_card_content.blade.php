@@ -10,7 +10,7 @@
         {{ $shift->title }}
     </flux:link>
 
-    <div class="text-sm">{!! \App\Http\Controllers\PlanController::buildDateString($shift->start, $shift->end) !!}</div>
+    <div class="text-sm">{!! \App\Http\Controllers\PlanController::buildDateHtml($shift->start, $shift->end) !!}</div>
 
     @if($shift->requires_health_certificate)
         <div>

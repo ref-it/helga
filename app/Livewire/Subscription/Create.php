@@ -133,6 +133,14 @@ class Create extends Component
                 abort(403);
             }
 
+            // a direct link to a shift that is over - the plan page no longer
+            // offers it, so don't show a form that can't succeed
+            if ($shift->hasEnded()) {
+                Flux::toast(variant: 'danger', text: __('subscription.enoughSubscription'));
+
+                return $this->redirectRoute('plan.show', ['plan' => $plan], navigate: true);
+            }
+
             $this->shiftIds = [$shift->id];
         } else {
             $this->shiftIds = $this->shiftIdsFromRequest($plan);
@@ -216,9 +224,11 @@ class Create extends Component
         }
 
         // a shift may well have filled up while the form was open - sign up
-        // for the ones that still have room and report on the rest
+        // for the ones that still have room and report on the rest - a shift
+        // may also have ended while the form was open
         $open = $this->shifts->filter(
-            fn (Shift $shift): bool => $shift->team_size > $shift->subscriptions()->count()
+            fn (Shift $shift): bool => ! $shift->hasEnded()
+                && $shift->team_size > $shift->subscriptions()->count()
         );
 
         if ($open->isEmpty()) {

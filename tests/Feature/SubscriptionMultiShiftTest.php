@@ -311,3 +311,56 @@ test('a shift that fills up while the form is open is skipped', function (): voi
     expect($first->subscriptions()->where('email', 'jane@example.com')->count())->toBe(1)
         ->and($second->subscriptions()->where('email', 'jane@example.com')->count())->toBe(0);
 });
+
+test('a shift that is over shows a disabled checkbox and cannot be self-subscribed', function (): void {
+    $shift = createPlanWithShift();
+    $shift->update(['start' => now()->subHours(3), 'end' => now()->subHour()]);
+
+    $response = $this->get(route('plan.show', $shift->plan))->assertOk();
+
+    expect($shift->fresh()->hasEnded())->toBeTrue()
+        ->and($shift->fresh()->load('subscriptions')->isOpenFor(null))->toBeFalse()
+        ->and(shiftCheckboxState($response->getContent(), $shift))->toBe('disabled');
+});
+
+test('a shift still running is not over yet', function (): void {
+    $shift = createPlanWithShift();
+    $shift->update(['start' => now()->subHour(), 'end' => now()->addHour()]);
+
+    expect($shift->fresh()->hasEnded())->toBeFalse();
+});
+
+test('ticking a shift that is over does not carry it into the sign-up form', function (): void {
+    $over = createPlanWithShift();
+    $over->update(['start' => now()->subHours(3), 'end' => now()->subHour()]);
+
+    Livewire::test(Show::class, ['plan' => $over->plan])
+        ->set('selectedShifts', [(string) $over->id])
+        ->call('subscribeToSelected')
+        ->assertNoRedirect();
+});
+
+test('the sign-up form for a shift that is over redirects back to the plan', function (): void {
+    $over = createPlanWithShift();
+    $over->update(['start' => now()->subHours(3), 'end' => now()->subHour()]);
+
+    Livewire::test(Create::class, ['plan' => $over->plan, 'shift' => $over])
+        ->assertRedirect(route('plan.show', ['plan' => $over->plan]));
+});
+
+test('a shift that ended while the form was open is skipped on save', function (): void {
+    $open = createPlanWithShift();
+    $over = addShiftToPlan($open);
+    $user = User::factory()->create(['name' => 'Jane Doe', 'email' => 'jane@example.com']);
+
+    $component = Livewire::actingAs($user)
+        ->withQueryParams(['shifts' => [$open->id, $over->id]])
+        ->test(Create::class, ['plan' => $open->plan]);
+
+    $over->update(['start' => now()->subHours(3), 'end' => now()->subHour()]);
+
+    $component->call('save')->assertHasNoErrors();
+
+    expect($open->subscriptions()->count())->toBe(1)
+        ->and($over->subscriptions()->count())->toBe(0);
+});

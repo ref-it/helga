@@ -110,8 +110,18 @@ class Shift extends Model
     }
 
     /**
-     * Whether the given visitor can still sign up for this shift - a slot
-     * must be free and they must not be on it already.
+     * Whether the shift's period is over - nobody can sign themselves up
+     * for it any more (an organiser adding someone by hand is not affected).
+     */
+    public function hasEnded(): bool
+    {
+        return strtotime((string) $this->end) < time();
+    }
+
+    /**
+     * Whether the given visitor can still sign up for this shift - the shift
+     * must not be over, a slot must be free and they must not be on it
+     * already.
      *
      * This reads the loaded `subscriptions` relation so that rendering a
      * whole plan costs no extra query per shift; the sign-up form itself
@@ -120,7 +130,8 @@ class Shift extends Model
      */
     public function isOpenFor(?User $user): bool
     {
-        return $this->subscriptions->count() < $this->team_size
+        return ! $this->hasEnded()
+            && $this->subscriptions->count() < $this->team_size
             && ! $this->isSubscribedBy($user);
     }
 

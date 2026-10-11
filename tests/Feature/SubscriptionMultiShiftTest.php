@@ -373,6 +373,7 @@ test('subscriber names sit behind a button instead of being listed in the card',
     $this->actingAs(User::factory()->create())->get(route('plan.show', $shift->plan))
         ->assertOk()
         ->assertSee('aria-label="'.__('plan.showSubscribers').'"', false)
+        ->assertSee('title="'.__('plan.showSubscribers').'"', false)
         ->assertSee('Jane Doe');
 });
 

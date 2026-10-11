@@ -30,6 +30,7 @@
                         variant="ghost"
                         icon="users"
                         aria-label="{{ __('plan.showSubscribers') }}"
+                        title="{{ __('plan.showSubscribers') }}"
                     />
                     <flux:popover class="p-3">
                         <ul class="space-y-0.5 text-sm">
